@@ -1,0 +1,14 @@
+# Rahasia & lingkungan lokal
+.env
+.venv*/
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Cache runtime (statistik Earth Engine, GBIF)
+cache/*.json
+cache/*.tmp
+data/*.tmp

@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../app"
+		},
+		{
+			"path": "../cache"
+		},
+		{
+			"path": "../frontend"
+		},
+		{
+			"path": "../tests"
+		}
+	]
+}

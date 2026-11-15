@@ -1,0 +1,10 @@
+RRL ENVIROWATCH - WEB GIS NDVI JAWA BARAT
+
+MULAI DI WINDOWS:
+1. Ekstrak ZIP ke folder yang Anda inginkan.
+2. Buka folder hasil ekstrak dengan Visual Studio Code.
+3. Klik dua kali JALANKAN_WEBGIS.bat.
+4. Peta dasar dapat diakses: http://127.0.0.1:8000
+5. Untuk NDVI Sentinel-2 asli, baca README.md bagian A2 untuk hubungkan Google Earth Engine.
+
+PENTING: NDVI tidak disimulasikan, dan pembaruan bulanan otomatis perlu server tetap berjalan.
