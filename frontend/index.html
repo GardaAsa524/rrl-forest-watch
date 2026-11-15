@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/static/styles.css?v=10">
+  <link rel="stylesheet" href="/static/styles.css?v=11">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="/static/app.js?v=10"></script>
-  <script defer src="/static/live.js?v=10"></script>
+  <script defer src="/static/app.js?v=11"></script>
+  <script defer src="/static/live.js?v=11"></script>
 </head>
 <body>
 <div class="shell" id="shell">
@@ -95,7 +95,15 @@
       </div>
       <h3 class="sub">Status sumber data</h3>
       <ul class="sources" id="sourceList"></ul>
-      <div class="org"><img src="/static/img/logo-full-green.png" alt="Ruang Riung Lingkungan" width="200" height="97"><p class="fine">Data · Edukasi · Aksi Konservasi</p></div>
+      <div class="org"><img src="/static/img/logo-full-green.png" alt="Ruang Riung Lingkungan" width="200" height="97"><p class="fine">Data · Edukasi · Aksi Konservasi</p>
+        <div class="contact">
+          <a href="https://www.instagram.com/ruangriunglingkungan/" target="_blank" rel="noopener" aria-label="Instagram Ruang Riung Lingkungan">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.3" fill="currentColor"/></svg>
+            @ruangriunglingkungan</a>
+          <a href="mailto:ruangriunglingkungan@gmail.com" aria-label="Email Ruang Riung Lingkungan">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            ruangriunglingkungan@gmail.com</a>
+        </div></div>
       <p class="fine">Klik di mana saja pada peta untuk melihat profil lokasi (versi server): indeks citra, erosivitas, tren NDVI, ketinggian, kemiringan, dan tutupan lahan.</p>
     </section>
 
@@ -114,7 +122,7 @@
         <div class="callout">ⓘ Sumber: Kawasan Hutan 2023, KLHK (SK penetapan per provinsi). Areal Penggunaan Lain (APL) tidak ditampilkan karena bukan kawasan hutan. Luas dihitung dari geometri yang disederhanakan (±20 m).</div>
       </div>
       <div id="bioPlants" class="subpanel hidden">
-        <div id="tegakanBox" class="card"></div>
+        <div id="tegakanBox" class="card hidden"></div>
         <h3 class="sub">Catatan sebaran jenis pohon <small>GBIF</small></h3>
         <p class="muted">Titik pengamatan per sel ±5 km. Bukan peta luasan tegakan.</p>
         <div id="plantList" class="species-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
@@ -243,8 +251,11 @@
         <div class="form-grid">
           <label class="span2">Parameter<select id="airParam"></select></label>
         </div>
-        <div class="row-between"><button type="button" class="btn primary" id="airLoad">Muat data terkini</button>
-          <label class="inline-switch">Panah angin <span class="switch"><input type="checkbox" id="windToggle"><i></i></span></label></div>
+        <div class="form-grid">
+          <label>Radius buffer<select id="airBuffer"><option value="0">Tanpa buffer</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="25000">25 km</option></select></label>
+          <label class="inline-switch">Animasi angin <span class="switch"><input type="checkbox" id="windToggle" checked><i></i></span></label>
+        </div>
+        <button type="button" class="btn primary" id="airLoad">Muat data terkini</button>
         <div id="airList"></div>
       </div>
       <div class="card">

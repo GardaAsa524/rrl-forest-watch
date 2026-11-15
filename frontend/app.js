@@ -259,7 +259,8 @@ function renderSources() {
   const items = [
     [S.ready ? 'ok' : 'off', 'Google Earth Engine', S.ready ? 'Terhubung. Sentinel-2, CHIRPS, MODIS, WorldCover, SRTM siap.' : (S.status?.error || 'Belum terhubung.')],
     [S.gbif.animals ? 'ok' : '', 'GBIF · catatan biodiversitas', S.gbif.animals ? `Diperbarui ${new Date(S.gbif.animals.fetched * 1000).toLocaleDateString('id-ID')}` : 'Dimuat saat modul Biodiversitas dibuka.'],
-    vec('kawasan', 'Kawasan hutan'), vec('das', 'Daerah Aliran Sungai'), vec('sungai', 'Sungai'), vec('tegakan', 'Jenis tegakan'),
+    vec('kawasan', 'Kawasan hutan'), vec('das', 'Daerah Aliran Sungai'), vec('sungai', 'Sungai'),
+    ...(cat.tegakan?.available ? [vec('tegakan', 'Jenis tegakan')] : []),
     [S.status?.cdse?.instance ? 'ok' : 'off', 'Copernicus Data Space · Sentinel-2 realtime', S.status?.cdse?.instance ? 'Aktif: peta indeks & kualitas air 10 m terbaru.' : 'Belum dikonfigurasi (CDSE_INSTANCE_ID).'],
     ['ok', 'NASA GIBS / FIRMS', 'Titik panas, citra harian, aerosol, NO₂, SO₂, CO, hujan (tanpa kunci).'],
     ['ok', 'Open-Meteo', 'Kualitas udara (CAMS) & cuaca terkini per kab/kota (tanpa kunci, nonkomersial).'],
@@ -305,12 +306,9 @@ function summarize(d) {
 function renderVector(kind) {
   const d = S.vectors[kind];
   const box = $(kind === 'kawasan' ? '#kawasanBox' : '#tegakanBox');
-  if (!d.available) {
-    box.innerHTML = `<h4>${esc(d.title)}</h4><p class="muted">Data belum tersedia. Sumber yang disarankan: ${esc(d.source)}.
-      Admin dapat menambahkan file <code>${esc(d.file)}</code> (GeoJSON, EPSG:4326) lalu me-restart server.</p>
-      <div class="legend-list">${d.legend.map((l) => `<span><i style="background:${l.color}"></i>${esc(l.label)}</span>`).join('')}</div>`;
-    return;
-  }
+  // Layers without data are simply not shown (no empty "data belum tersedia" card).
+  box.classList.toggle('hidden', !d.available);
+  if (!d.available) { box.innerHTML = ''; return; }
   const rows = summarize(d);
   const total = rows.reduce((a, r) => a + r.size, 0);
   const n = rows.reduce((a, r) => a + r.n, 0);

@@ -206,6 +206,12 @@ function colorFor(param, v, lo, hi) {
   return SEQ[Math.min(SEQ.length - 1, Math.max(0, Math.floor(t * SEQ.length)))];
 }
 
+function textOn(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? '#111827' : '#ffffff';
+}
+
 function renderAir() {
   if (!AIR) return;
   const param = $('#airParam').value;
@@ -214,24 +220,35 @@ function renderAir() {
   const val = (p) => (sp.src === 'air' ? p.air : p.wx)[param];
   const vals = pts.map(val).filter((v) => v !== null && v !== undefined);
   const lo = Math.min(...vals), hi = Math.max(...vals);
+  const digits = param === 'aerosol_optical_depth' ? 2 : param === 'precipitation' ? 1 : 0;
+  const short = (v) => (v === null || v === undefined) ? '–' : Number(v).toLocaleString('id-ID', {maximumFractionDigits: digits, minimumFractionDigits: digits});
   const fmtV = (v) => (v === null || v === undefined) ? '—' : `${Number(v).toLocaleString('id-ID', {maximumFractionDigits: 1})} ${sp.unit}`;
-  const markers = pts.map((p) => {
+  const radius = Number($('#airBuffer').value);
+  const layers = [];
+  const pins = pts.map((p) => {
     const v = val(p);
-    const m = L.circleMarker([p.lat, p.lon], {pane: 'boundary', radius: 11, color: '#0f172a', weight: 1.2,
-      fillColor: colorFor(param, v, lo, hi), fillOpacity: .9, interactive: true});
-    m.bindTooltip(`<b>${esc(p.name)}</b><br>${esc(sp.label)}: ${esc(fmtV(v))}`);
+    const color = colorFor(param, v, lo, hi);
+    if (radius) {
+      layers.push(L.circle([p.lat, p.lon], {pane: 'vectors', radius, color, weight: 1, opacity: .6,
+        fillColor: color, fillOpacity: .18, interactive: false}));
+    }
+    // IQAir-style pin: the value itself, coloured by category.
+    const m = L.marker([p.lat, p.lon], {pane: 'markerPane', riseOnHover: true, icon: L.divIcon({className: 'aq-icon',
+      html: `<div class="aq-pin" style="background:${color};color:${textOn(color)};border-top-color:${color}">${short(v)}</div>`,
+      iconSize: [40, 32], iconAnchor: [20, 32], popupAnchor: [0, -30]})});
+    m.bindTooltip(`<b>${esc(p.name)}</b><br>${esc(sp.label)}: ${esc(fmtV(v))}`, {direction: 'top', offset: [0, -30]});
     m.bindPopup(`<div class="pt"><h4>${esc(p.name)}</h4><div class="coord">${esc(p.provinsi)} · titik pusat wilayah · ${esc(AIR.time || '')} WIB</div><table>
       ${Object.entries(AIR_PARAMS).map(([k, s]) => `<tr><td>${esc(s.label)}</td><td>${esc((() => { const x = (s.src === 'air' ? p.air : p.wx)[k]; return x === null || x === undefined ? '—' : `${Number(x).toLocaleString('id-ID', {maximumFractionDigits: 1})} ${s.unit}`; })())}</td></tr>`).join('')}
       <tr><td>Arah angin (dari)</td><td>${p.wx.wind_direction_10m ?? '—'}°</td></tr></table></div>`);
     m.on('click', () => { S.skipClick = true; });
+    layers.push(m);
     return m;
   });
-  // Re-enable pointer events on the boundary pane only for these markers.
-  S.map.getPane('boundary').style.pointerEvents = 'auto';
-  const legend = sp.scale
-    ? legendCats(`${sp.label} · ${AIR.time || ''}`, sp.scale.map(([max, color, name], i) => ({color, label: `${name}${max < 1e8 ? ` (≤ ${max})` : ''}`})))
-    : legendGradient(`${sp.label} (${sp.unit || 'indeks'}) · ${AIR.time || ''}`, SEQ.map((c) => c.slice(1)), fmtV(lo), fmtV(hi), '', '');
-  setLayer('air', L.layerGroup(markers), {label: `${sp.label} · kab/kota`, color: colorFor(param, hi, lo, hi), opacity: false, legend});
+  const legend = (sp.scale
+    ? legendCats(`${sp.label} · ${AIR.time || ''}`, sp.scale.map(([max, color, name]) => ({color, label: `${name}${max < 1e8 ? ` (≤ ${max})` : ''}`})))
+    : legendGradient(`${sp.label} (${sp.unit || 'indeks'}) · ${AIR.time || ''}`, SEQ.map((c) => c.slice(1)), fmtV(lo), fmtV(hi), '', ''))
+    + (radius ? `<div class="ends"><span>Lingkaran = radius ${radius / 1000} km dari titik pantau (ilustrasi jangkauan, bukan batas sebaran polutan)</span></div>` : '');
+  setLayer('air', L.layerGroup(layers), {label: `${sp.label} · kab/kota`, color: colorFor(param, hi, lo, hi), opacity: false, legend});
   const sorted = [...pts].sort((a, b) => (val(b) ?? -1e9) - (val(a) ?? -1e9));
   $('#airList').innerHTML = `<p class="fine">Pembaruan ${esc(AIR.time || '')} WIB · ${pts.length} kab/kota · urut dari tertinggi</p>
     <div class="kab-list">${sorted.map((p) => `<button type="button" class="kab-row" data-air="${esc(p.name)}">
@@ -240,22 +257,111 @@ function renderAir() {
   $$('[data-air]').forEach((b) => b.onclick = () => {
     const i = pts.findIndex((p) => p.name === b.dataset.air);
     S.map.flyTo([pts[i].lat, pts[i].lon], 10, {duration: .8});
-    setTimeout(() => markers[i].openPopup(), 900);
+    setTimeout(() => pins[i].openPopup(), 900);
   });
-  if ($('#windToggle').checked) renderWind();
+  if ($('#windToggle').checked) renderWind(); else removeLayer('wind');
 }
+
+/* ------------------------------------------------- animated wind particles */
+const WindLayer = L.Layer.extend({
+  initialize(points) {
+    // u/v in m/s from Open-Meteo speed (km/h) and meteorological direction (where wind comes FROM).
+    this.points = points.filter((p) => p.wx.wind_speed_10m !== undefined && p.wx.wind_direction_10m !== undefined)
+      .map((p) => {
+        const s = p.wx.wind_speed_10m / 3.6, r = p.wx.wind_direction_10m * Math.PI / 180;
+        return {lat: p.lat, lon: p.lon, u: -s * Math.sin(r), v: -s * Math.cos(r)};
+      });
+  },
+  onAdd(map) {
+    this._map = map;
+    if (!map.getPane('wind')) { map.createPane('wind').style.zIndex = 445; map.getPane('wind').style.pointerEvents = 'none'; }
+    this.canvas = L.DomUtil.create('canvas', 'wind-canvas', map.getPane('wind'));
+    this.ctx = this.canvas.getContext('2d');
+    this._reset = this._reset.bind(this);
+    this._pause = () => { cancelAnimationFrame(this.raf); this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); };
+    map.on('movestart zoomstart', this._pause);
+    map.on('moveend zoomend resize', this._reset);
+    this._reset();
+  },
+  onRemove(map) {
+    cancelAnimationFrame(this.raf);
+    map.off('movestart zoomstart', this._pause);
+    map.off('moveend zoomend resize', this._reset);
+    this.canvas.remove();
+  },
+  setOpacity() {},
+  /** Inverse-distance interpolation; returns null far from every station (> ~0.6°). */
+  _sample(lat, lon) {
+    let su = 0, sv = 0, sw = 0, near = Infinity;
+    for (const p of this.points) {
+      const d2 = (p.lat - lat) ** 2 + (p.lon - lon) ** 2;
+      near = Math.min(near, d2);
+      const w = 1 / Math.max(d2, 1e-4);
+      su += w * p.u; sv += w * p.v; sw += w;
+    }
+    return near > 0.36 ? null : [su / sw, sv / sw];
+  },
+  _reset() {
+    const map = this._map, size = map.getSize();
+    cancelAnimationFrame(this.raf);
+    L.DomUtil.setPosition(this.canvas, map.containerPointToLayerPoint([0, 0]));
+    this.canvas.width = size.x; this.canvas.height = size.y;
+    // Pre-compute a coarse screen-space vector grid (fast lookups per frame).
+    const cell = 24, cols = Math.ceil(size.x / cell) + 1, rows = Math.ceil(size.y / cell) + 1;
+    const pxPerSec = 1.2 + Math.max(0, map.getZoom() - 7) * 0.6;  // keep motion readable at any zoom
+    this.grid = {cell, cols, rows, data: new Array(cols * rows)};
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const ll = map.containerPointToLatLng([i * cell, j * cell]);
+        const uv = this._sample(ll.lat, ll.lng);
+        this.grid.data[j * cols + i] = uv && [uv[0] * pxPerSec, -uv[1] * pxPerSec];
+      }
+    }
+    const n = Math.min(2500, Math.round(size.x * size.y / 900));
+    this.particles = Array.from({length: n}, () => this._spawn());
+    const dark = document.documentElement.dataset.theme === 'dark';
+    this.color = dark ? 'rgba(186,230,253,0.85)' : 'rgba(3,105,161,0.75)';
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { this._frame(true); return; }
+    const loop = () => { this._frame(); this.raf = requestAnimationFrame(loop); };
+    loop();
+  },
+  _spawn() {
+    const {cols, rows, cell} = this.grid;
+    return {x: Math.random() * (cols - 1) * cell, y: Math.random() * (rows - 1) * cell, age: Math.floor(Math.random() * 80)};
+  },
+  _vec(x, y) {
+    const {cell, cols, data} = this.grid;
+    return data[Math.round(y / cell) * cols + Math.round(x / cell)];
+  },
+  _frame(still = false) {
+    const ctx = this.ctx, {width: w, height: h} = this.canvas;
+    ctx.globalCompositeOperation = 'destination-in';  // fade previous trails
+    ctx.fillStyle = 'rgba(0,0,0,0.92)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (const p of this.particles) {
+      const v = this._vec(p.x, p.y);
+      if (!v || p.age++ > 90) { Object.assign(p, this._spawn(), {age: 0}); continue; }
+      const nx = p.x + v[0] * (still ? 12 : 1), ny = p.y + v[1] * (still ? 12 : 1);
+      ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny);
+      p.x = nx; p.y = ny;
+      if (nx < 0 || ny < 0 || nx > w || ny > h) Object.assign(p, this._spawn(), {age: 0});
+    }
+    ctx.stroke();
+  },
+});
 
 function renderWind() {
   if (!AIR) return;
   const pts = AIR.points.filter((p) => !AREA_PROV[S.area] || p.provinsi === AREA_PROV[S.area]);
-  const arrows = pts.filter((p) => p.wx.wind_direction_10m !== undefined).map((p) => {
-    const to = (p.wx.wind_direction_10m + 180) % 360;  // meteorological "from" -> arrow points where wind goes
-    const size = 16 + Math.min(20, (p.wx.wind_speed_10m || 0));
-    return L.marker([p.lat, p.lon], {pane: 'boundary', interactive: false, icon: L.divIcon({className: 'wind-arrow',
-      html: `<span style="transform:rotate(${to}deg);font-size:${size}px">↑</span>`, iconSize: [30, 30], iconAnchor: [15, 15]})});
-  });
-  setLayer('wind', L.layerGroup(arrows), {label: 'Arah & kecepatan angin', color: '#0ea5e9', opacity: false,
-    legend: '<h5>Angin 10 m</h5><div class="ends"><span>Panah = arah tiupan</span><span>besar = lebih kencang</span></div>'});
+  const speeds = pts.map((p) => p.wx.wind_speed_10m).filter((v) => v !== undefined);
+  const avg = speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : null;
+  setLayer('wind', new WindLayer(pts), {label: 'Animasi angin 10 m', color: '#0ea5e9', opacity: false,
+    legend: `<h5>Angin 10 m · ${esc(AIR.time || '')}</h5><div class="ends"><span>Garis bergerak = arah tiupan angin</span>
+      <span>rerata ${avg === null ? '—' : avg.toLocaleString('id-ID', {maximumFractionDigits: 1})} km/j</span></div>`});
 }
 
 async function loadAir() {
@@ -293,6 +399,7 @@ function initLive() {
   $('#airParam').onchange = renderAir;
   $('#airLoad').onclick = loadAir;
   $('#windToggle').onchange = (e) => { if (e.target.checked) { if (AIR) renderWind(); else loadAir(); } else removeLayer('wind'); };
+  $('#airBuffer').onchange = renderAir;
   $('#gibsLoad').onclick = loadGibsAtmos;
   $('#fireLoad').onclick = loadFire;
   $('#trueColorToggle').onchange = (e) => toggleTrueColor(e.target.checked);
