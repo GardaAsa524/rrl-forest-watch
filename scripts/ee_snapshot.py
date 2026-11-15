@@ -28,7 +28,9 @@ from app.gee_service import (ENV_LAYERS, INDICES, TZ, WATER_AOIS, WATER_LAYERS, 
 
 TILE_PX = 1024   # per tile; one request per tile keeps Earth Engine under its thumbnail limits
 GRID = 2         # 2 x 2 tiles -> 2048 px across the study area (±200 m)
-WORKERS = 6
+# Projects in Earth Engine "Restricted Mode" (noncommercial, unverified) get a very low
+# concurrency limit, so keep parallel requests small and back off on HTTP 429.
+WORKERS = 3
 
 
 def _dump(path: Path, data):
@@ -36,14 +38,15 @@ def _dump(path: Path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':'), default=str), encoding='utf-8')
 
 
-def _retry(fn, tries=3):
+def _retry(fn, tries=6):
     for i in range(tries):
         try:
             return fn()
-        except Exception:
+        except Exception as exc:
             if i == tries - 1:
                 raise
-            time.sleep(5 * (i + 1))
+            busy = '429' in str(exc) or 'Too Many Requests' in str(exc) or 'concurrency' in str(exc)
+            time.sleep(20 * 2 ** i if busy else 5 * (i + 1))  # 429: 20, 40, 80 s ...
 
 
 class Snapshot:
