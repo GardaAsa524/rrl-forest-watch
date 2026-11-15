@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import biodiversity, vectors
-from .config import ROOT, PROJECT, SCHEDULER_ENABLED, CACHE_DIR, AREAS
+from .config import ROOT, PROJECT, SCHEDULER_ENABLED, CACHE_DIR, AREAS, CDSE_INSTANCE_ID, CDSE_LAYER
 from .gee_service import (EarthEngineUnavailable, service, INDICES, ENV_LAYERS, WORLDCOVER,
                           WATER_LAYERS, WATER_AOIS, FIRST_YEAR, ENV_FIRST_YEAR)
 from .store import get_stat, put_stat, stat_key
@@ -77,6 +77,7 @@ def status():
         'env_layers': ENV_LAYERS,
         'water_layers': WATER_LAYERS,
         'water_aois': WATER_AOIS,
+        'cdse': {'instance': CDSE_INSTANCE_ID, 'layer': CDSE_LAYER} if CDSE_INSTANCE_ID else None,
         'worldcover': [{'code': c, 'label': n, 'color': '#' + p} for c, n, p in WORLDCOVER],
         'scheduler_enabled': bool(_scheduler and _scheduler.running),
         'scheduler_schedule': 'Tanggal 10 setiap bulan, 04.00 WIB',

@@ -15,7 +15,7 @@ const IUCN_ID = {CR: 'Kritis', EN: 'Genting', VU: 'Rentan', NT: 'Hampir terancam
 
 const S = {
   status: null, ready: false, area: 'all', module: 'overview', currentYear: new Date().getFullYear(),
-  index: 'ndvi', mask: 'trees', env: 'erosivity', bio: 'plants',
+  index: 'ndvi', mask: 'trees', env: 'degradation', bio: 'forest', land: 'index',
   map: null, base: null, boundary: null, layers: new Map(), busy: 0, compare: false,
   gbif: {}, vectors: {}, reloaders: new Map(), skipClick: false,
 };
@@ -246,11 +246,9 @@ function setModule(name) {
   $$('.module').forEach((m) => m.classList.toggle('on', m.dataset.module === name));
   $('#panel').scrollTop = 0;
   $('#panel').classList.remove('collapsed');
-  if (name === 'forest') { loadVector('kawasan'); loadKab(); }
-  if (name === 'bio') loadBio();
-  if (name === 'index') renderIndexMethod();
-  if (name === 'env') { renderEnvInfo(); loadHydro(); }
-  if (name === 'water') renderWaterInfo();
+  if (name === 'bio') { loadVector('kawasan'); loadKab(); loadBio(); }
+  if (name === 'land') { renderIndexMethod(); renderEnvInfo(); renderCdseCard('#cdseIndexCard', 'index'); }
+  if (name === 'water') { loadHydro(); renderWaterInfo(); renderCdseCard('#cdseWaterCard', 'water'); }
 }
 
 /* ======================================================= OVERVIEW */
@@ -262,6 +260,9 @@ function renderSources() {
     [S.ready ? 'ok' : 'off', 'Google Earth Engine', S.ready ? 'Terhubung. Sentinel-2, CHIRPS, MODIS, WorldCover, SRTM siap.' : (S.status?.error || 'Belum terhubung.')],
     [S.gbif.animals ? 'ok' : '', 'GBIF · catatan biodiversitas', S.gbif.animals ? `Diperbarui ${new Date(S.gbif.animals.fetched * 1000).toLocaleDateString('id-ID')}` : 'Dimuat saat modul Biodiversitas dibuka.'],
     vec('kawasan', 'Kawasan hutan'), vec('das', 'Daerah Aliran Sungai'), vec('sungai', 'Sungai'), vec('tegakan', 'Jenis tegakan'),
+    [S.status?.cdse?.instance ? 'ok' : 'off', 'Copernicus Data Space · Sentinel-2 realtime', S.status?.cdse?.instance ? 'Aktif: peta indeks & kualitas air 10 m terbaru.' : 'Belum dikonfigurasi (CDSE_INSTANCE_ID).'],
+    ['ok', 'NASA GIBS / FIRMS', 'Titik panas, citra harian, aerosol, NO₂, SO₂, CO, hujan (tanpa kunci).'],
+    ['ok', 'Open-Meteo', 'Kualitas udara (CAMS) & cuaca terkini per kab/kota (tanpa kunci, nonkomersial).'],
   ];
   $('#sourceList').innerHTML = items.map(([c, t, d]) => `<li class="${c}"><i></i><div><b>${esc(t)}</b><small>${esc(d)}</small></div></li>`).join('');
 }
@@ -568,6 +569,7 @@ function renderIndexCards() {
     $('#idxStats').innerHTML = '';
     $('#trendChart').innerHTML = '<p class="muted">Klik “Hitung tren” untuk indeks ini.</p>';
     $('#trendTitle').textContent = `Tren tahunan ${S.status.indices[S.index].label}`;
+    renderCdseCard('#cdseIndexCard', 'index');
     if (S.layers.has('rasterA')) loadIndex();
   });
 }
@@ -749,6 +751,7 @@ function renderWaterCards() {
     $('#waterStats').innerHTML = '';
     $('#waterTrend').innerHTML = '<p class="muted">Rerata tahunan untuk area fokus terpilih.</p>';
     renderWaterInfo();
+    renderCdseCard('#cdseWaterCard', 'water');
   });
   const aois = S.status?.water_aois || {};
   $('#waterAoi').innerHTML = `<option value="all">Seluruh perairan (pesisir ±12 km + badan air darat)</option>` +
@@ -857,8 +860,8 @@ async function onMapClick(e) {
     L.popup().setLatLng(e.latlng).setContent(`${head}<p class="muted">${msg}</p></div>`).openOn(S.map);
     return;
   }
-  const year = S.module === 'index' ? Number($('#idxYear').value) : S.currentYear - 1;
-  const month = S.module === 'index' ? Number($('#idxMonth').value) : 0;
+  const year = S.module === 'land' ? Number($('#idxYear').value) : S.currentYear - 1;
+  const month = S.module === 'land' ? Number($('#idxMonth').value) : 0;
   const popup = L.popup({maxWidth: 300}).setLatLng(e.latlng).setContent(`${head}<p class="muted"><span class="spinner" style="border-color:#cfe3c7;border-top-color:#145243;display:inline-block;vertical-align:middle"></span> Membaca Earth Engine…</p></div>`).openOn(S.map);
   try {
     const d = await api(`/api/point?lat=${lat}&lon=${lng}&year=${year}&month=${month}`);
@@ -906,8 +909,16 @@ function wire() {
   $$('#bioSeg button').forEach((b) => b.onclick = () => {
     S.bio = b.dataset.bio;
     $$('#bioSeg button').forEach((x) => x.classList.toggle('on', x === b));
+    $('#bioForest').classList.toggle('hidden', S.bio !== 'forest');
     $('#bioPlants').classList.toggle('hidden', S.bio !== 'plants');
     $('#bioAnimals').classList.toggle('hidden', S.bio !== 'animals');
+  });
+  $$('#landSeg button').forEach((b) => b.onclick = () => {
+    S.land = b.dataset.land;
+    $$('#landSeg button').forEach((x) => x.classList.toggle('on', x === b));
+    for (const [k, id] of [['index', '#landIndex'], ['fire', '#landFire'], ['env', '#landEnv'], ['cover', '#landCover']]) {
+      $(id).classList.toggle('hidden', S.land !== k);
+    }
   });
   $$('#maskSeg button').forEach((b) => b.onclick = () => {
     S.mask = b.dataset.mask;
@@ -965,7 +976,11 @@ async function init() {
   loadBoundary();
   loadFaunaKpi();
   api('/api/layers').then((c) => { S.catalog = c; renderSources(); }).catch(() => {});
-  if (!S.ready && S.status) toast('Mode tanpa Earth Engine', ' Peta dasar, kawasan hutan, DAS, sungai, dan biodiversitas (GBIF) tetap bisa dipakai. Lapisan citra butuh koneksi Earth Engine.');
+  getVector('kawasan').then((d) => { if (d.available) $('#kpiForest').textContent = `${fmtInt(d.total)} km²`; }).catch(() => {});
+  initLive();
+  renderCdseCard('#cdseIndexCard', 'index');
+  renderCdseCard('#cdseWaterCard', 'water');
+  if (!S.ready && S.status && !S.status.static) toast('Mode tanpa Earth Engine', ' Kawasan hutan, DAS, sungai, biodiversitas, titik panas, udara & cuaca tetap bisa dipakai. Komposit & statistik citra butuh koneksi Earth Engine.');
 }
 
 window.addEventListener('DOMContentLoaded', init);

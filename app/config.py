@@ -8,6 +8,10 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / '.env')
 PROJECT = os.getenv('GOOGLE_CLOUD_PROJECT', '').strip()
 SCHEDULER_ENABLED = os.getenv('ENABLE_SCHEDULER', 'true').lower() in ('1', 'true', 'yes', 'on')
+# Copernicus Data Space (Sentinel Hub OGC). Instance ID is public by design (used in the browser);
+# restrict it to your domain in the CDSE dashboard. Never put OAuth client secrets here.
+CDSE_INSTANCE_ID = os.getenv('CDSE_INSTANCE_ID', '').strip()
+CDSE_LAYER = os.getenv('CDSE_LAYER', 'S2L2A').strip() or 'S2L2A'
 CACHE_DIR = ROOT / 'cache'
 CACHE_DIR.mkdir(exist_ok=True)
 # User-supplied vector layers (kawasan hutan, jenis tegakan) live here.

@@ -42,6 +42,8 @@ jobs:
         env:
           EE_SERVICE_ACCOUNT_KEY: ${{ secrets.EE_SERVICE_ACCOUNT_KEY }}
           GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          CDSE_INSTANCE_ID: ${{ vars.CDSE_INSTANCE_ID }}
+          CDSE_LAYER: ${{ vars.CDSE_LAYER }}
           ENABLE_SCHEDULER: 'false'
           PYTHONIOENCODING: utf-8
         run: python scripts/build_static.py --with-ee auto

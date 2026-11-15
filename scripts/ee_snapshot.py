@@ -182,4 +182,5 @@ def build(docs: Path, only: set[str] | None = None) -> dict:
     return {'generated': datetime.now(TZ).isoformat(timespec='minutes'),
             'index_years': index_years, 'index_map_years': map_years,
             'env_year': last_full, 'water_year': last_full, 'water_layers': water_layers,
-            'jobs_ok': snap.done, 'jobs_failed': len(snap.failed)}
+            'jobs_ok': snap.done, 'jobs_failed': len(snap.failed),
+            'errors': sorted({e.split(': ', 1)[-1][:300] for e in snap.failed})[:5]}

@@ -11,9 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/static/styles.css?v=9">
+  <link rel="stylesheet" href="/static/styles.css?v=10">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="/static/app.js?v=9"></script>
+  <script defer src="/static/app.js?v=10"></script>
+  <script defer src="/static/live.js?v=10"></script>
 </head>
 <body>
 <div class="shell" id="shell">
@@ -42,11 +43,10 @@
   <!-- ===== Navigation rail ===== -->
   <nav class="rail" aria-label="Modul">
     <button type="button" class="rail-btn on" data-module="overview"><span class="ri">◎</span><span>Ringkasan</span></button>
-    <button type="button" class="rail-btn" data-module="forest"><span class="ri">▲</span><span>Jenis Hutan</span></button>
-    <button type="button" class="rail-btn" data-module="bio"><span class="ri">❦</span><span>Biodiversitas</span></button>
-    <button type="button" class="rail-btn" data-module="index"><span class="ri">◐</span><span>Indeks Citra</span></button>
-    <button type="button" class="rail-btn" data-module="env"><span class="ri">≋</span><span>Lingkungan</span></button>
-    <button type="button" class="rail-btn" data-module="water"><span class="ri">💧</span><span>Kualitas Air</span></button>
+    <button type="button" class="rail-btn" data-module="bio"><span class="ri">🌳</span><span>Hutan &amp; Biodiversitas</span></button>
+    <button type="button" class="rail-btn" data-module="land"><span class="ri">⛰</span><span>Daratan</span></button>
+    <button type="button" class="rail-btn" data-module="water"><span class="ri">💧</span><span>Perairan</span></button>
+    <button type="button" class="rail-btn" data-module="air"><span class="ri">☁</span><span>Udara</span></button>
   </nav>
 
   <!-- ===== Map ===== -->
@@ -66,7 +66,7 @@
 
     <div id="activeLayers" class="active-layers" aria-live="polite"></div>
     <div id="legend" class="legend hidden"></div>
-    <div id="mapBusy" class="map-busy hidden"><span class="spinner"></span><span id="mapBusyText">Mengolah di Earth Engine…</span></div>
+    <div id="mapBusy" class="map-busy hidden"><span class="spinner"></span><span id="mapBusyText">Mengolah data…</span></div>
   </section>
 
   <!-- ===== Panel ===== -->
@@ -76,56 +76,50 @@
     <!-- Ringkasan -->
     <section class="module on" data-module="overview">
       <div class="hero"><img class="hero-logo" src="/static/img/logo-mark.png" alt="" aria-hidden="true">
-        <span class="kicker">Pemantauan hutan berbasis data</span>
-        <h1>Hutan Jabar, Banten & Jakarta, <em>dalam satu peta.</em></h1>
-        <p>Pantau fungsi kawasan, jenis tegakan, habitat satwa endemik, indeks citra satelit, dan kondisi erosi & degradasi lahan.</p>
+        <span class="kicker">Pemantauan lingkungan berbasis data</span>
+        <h1>Lingkungan Jabar, Banten &amp; Jakarta, <em>dalam satu peta.</em></h1>
+        <p>Pantau hutan dan keanekaragaman hayati, kondisi daratan, perairan, serta kualitas udara dari citra satelit, data pemerintah, dan data terbuka, sebagian diperbarui harian.</p>
       </div>
       <div class="kpis" id="kpis">
         <div class="kpi"><span>Wilayah</span><strong id="kpiArea">Semua wilayah</strong></div>
         <div class="kpi"><span>Catatan satwa (GBIF)</span><strong id="kpiFauna">—</strong></div>
-        <div class="kpi"><span>Indeks citra</span><strong>4</strong><small>NDVI · MSARVI · NDWI · NDBI</small></div>
+        <div class="kpi"><span>Kawasan hutan</span><strong id="kpiForest">—</strong><small>KLHK 2023</small></div>
         <div class="kpi"><span>Data citra</span><strong id="kpiYears">2020—</strong></div>
       </div>
       <h3 class="sub">Mulai dari sini</h3>
       <div class="quick">
-        <button type="button" class="quick-card" data-go="forest"><span class="qi">▲</span><b>Jenis hutan</b><small>Produksi, lindung, konservasi</small></button>
-        <button type="button" class="quick-card" data-go="bio"><span class="qi">❦</span><b>Biodiversitas</b><small>Tegakan & habitat satwa</small></button>
-        <button type="button" class="quick-card" data-go="index"><span class="qi">◐</span><b>Indeks citra</b><small>NDVI, MSARVI, NDWI, NDBI</small></button>
-        <button type="button" class="quick-card" data-go="env"><span class="qi">≋</span><b>Lingkungan</b><small>Erosivitas & degradasi</small></button>
+        <button type="button" class="quick-card" data-go="bio"><span class="qi">🌳</span><b>Hutan &amp; biodiversitas</b><small>Kawasan hutan, tanaman, habitat satwa</small></button>
+        <button type="button" class="quick-card" data-go="land"><span class="qi">⛰</span><b>Daratan</b><small>Indeks citra, kebakaran, degradasi, tutupan lahan</small></button>
+        <button type="button" class="quick-card" data-go="water"><span class="qi">💧</span><b>Perairan</b><small>DAS, sungai, kualitas air</small></button>
+        <button type="button" class="quick-card" data-go="air"><span class="qi">☁</span><b>Udara</b><small>Kualitas udara, polutan, cuaca, angin, hujan</small></button>
       </div>
       <h3 class="sub">Status sumber data</h3>
       <ul class="sources" id="sourceList"></ul>
       <div class="org"><img src="/static/img/logo-full-green.png" alt="Ruang Riung Lingkungan" width="200" height="97"><p class="fine">Data · Edukasi · Aksi Konservasi</p></div>
-      <p class="fine">Klik di mana saja pada peta untuk melihat profil lokasi: nilai keempat indeks, erosivitas, tren NDVI, ketinggian, kemiringan, dan tutupan lahan.</p>
+      <p class="fine">Klik di mana saja pada peta untuk melihat profil lokasi (versi server): indeks citra, erosivitas, tren NDVI, ketinggian, kemiringan, dan tutupan lahan.</p>
     </section>
 
-    <!-- Jenis hutan -->
-    <section class="module" data-module="forest">
-      <header class="mod-head"><span class="kicker">01 · Kawasan</span><h2>Jenis & fungsi hutan</h2>
-        <p>Hutan produksi (tetap, terbatas, konversi), hutan lindung, dan hutan konservasi.</p></header>
-      <div id="kawasanBox" class="card"></div>
-      <div id="kabBox" class="card"></div>
-      <div class="card">
-        <div class="row-between"><div><h4>Tutupan lahan aktual</h4><p class="muted">ESA WorldCover 2021 (10 m) via Earth Engine. Menunjukkan tutupan pohon, bukan status legal.</p></div>
-          <label class="switch"><input type="checkbox" id="lcToggle"><i></i></label></div>
-      </div>
-      <div class="callout">ⓘ Sumber: Kawasan Hutan 2023, KLHK (SK penetapan per provinsi). Areal Penggunaan Lain (APL) tidak ditampilkan karena bukan kawasan hutan. Luas dihitung dari geometri yang disederhanakan (±20 m).</div>
-    </section>
-
-    <!-- Biodiversitas -->
+    <!-- Hutan & biodiversitas -->
     <section class="module" data-module="bio">
-      <header class="mod-head"><span class="kicker">02 · Biodiversitas</span><h2>Tegakan & habitat satwa</h2></header>
+      <header class="mod-head"><span class="kicker">01 · Hutan &amp; biodiversitas</span><h2>Kawasan hutan, tanaman &amp; satwa</h2>
+        <p>Fungsi kawasan hutan resmi, sebaran jenis pohon, dan habitat satwa endemik terancam.</p></header>
       <div class="seg wide" id="bioSeg">
-        <button type="button" data-bio="plants" class="on">A · Jenis tanaman</button>
-        <button type="button" data-bio="animals">B · Habitat satwa</button>
+        <button type="button" data-bio="forest" class="on">Kawasan hutan</button>
+        <button type="button" data-bio="plants">Tanaman</button>
+        <button type="button" data-bio="animals">Satwa</button>
       </div>
-      <div id="bioPlants">
+      <div id="bioForest" class="subpanel">
+        <div id="kawasanBox" class="card"></div>
+        <div id="kabBox" class="card"></div>
+        <div class="callout">ⓘ Sumber: Kawasan Hutan 2023, KLHK (SK penetapan per provinsi). Areal Penggunaan Lain (APL) tidak ditampilkan karena bukan kawasan hutan. Luas dihitung dari geometri yang disederhanakan (±20 m).</div>
+      </div>
+      <div id="bioPlants" class="subpanel hidden">
         <div id="tegakanBox" class="card"></div>
         <h3 class="sub">Catatan sebaran jenis pohon <small>GBIF</small></h3>
         <p class="muted">Titik pengamatan per sel ±5 km. Bukan peta luasan tegakan.</p>
         <div id="plantList" class="species-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
       </div>
-      <div id="bioAnimals" class="hidden">
+      <div id="bioAnimals" class="subpanel hidden">
         <div class="card slim row-between"><div><h4>Konteks habitat hutan</h4><p class="muted">Tutupan pohon + mangrove (WorldCover 2021)</p></div>
           <label class="switch"><input type="checkbox" id="habitatToggle"><i></i></label></div>
         <div id="animalList" class="species-grid"><div class="skeleton tall"></div><div class="skeleton tall"></div></div>
@@ -133,68 +127,141 @@
       </div>
     </section>
 
-    <!-- Indeks -->
-    <section class="module" data-module="index">
-      <header class="mod-head"><span class="kicker">03 · Google Earth Engine</span><h2>Indeks citra Sentinel-2</h2>
-        <p>Komposit median 10 m, awan disaring per piksel.</p></header>
-      <div class="index-cards" id="indexCards"></div>
-      <div class="form-grid">
-        <label>Tahun<select id="idxYear"></select></label>
-        <label>Periode<select id="idxMonth"></select></label>
-        <label class="span2">Area analisis
-          <div class="seg" id="maskSeg"><button type="button" data-mask="trees" class="on">Tutupan pohon</button><button type="button" data-mask="region">Seluruh wilayah</button></div></label>
+    <!-- Daratan -->
+    <section class="module" data-module="land">
+      <header class="mod-head"><span class="kicker">02 · Daratan</span><h2>Analisis lingkungan darat</h2>
+        <p>Indeks citra satelit, titik panas kebakaran, degradasi &amp; erosi, serta tutupan lahan.</p></header>
+      <div class="seg wide" id="landSeg">
+        <button type="button" data-land="index" class="on">Indeks citra</button>
+        <button type="button" data-land="fire">Kebakaran</button>
+        <button type="button" data-land="env">Degradasi &amp; erosi</button>
+        <button type="button" data-land="cover">Tutupan lahan</button>
       </div>
-      <div class="card slim row-between"><div><h4>Bandingkan dua tahun</h4><p class="muted">Geser garis pada peta</p></div><label class="switch"><input type="checkbox" id="compareToggle"><i></i></label></div>
-      <label id="compareYearWrap" class="hidden">Tahun pembanding<select id="idxYearB"></select></label>
-      <button type="button" class="btn primary" id="idxLoad">Tampilkan di peta</button>
-      <div class="stats" id="idxStats"></div>
-      <div class="card">
-        <div class="row-between"><h4 id="trendTitle">Tren tahunan</h4><button type="button" class="btn ghost small" id="trendBtn">Hitung tren</button></div>
-        <div id="trendChart" class="chart"><p class="muted">Hitung rerata indeks per tahun dari Earth Engine (statistik regional 250 m).</p></div>
+
+      <div id="landIndex" class="subpanel">
+        <div class="index-cards" id="indexCards"></div>
+        <div class="card live-card" id="cdseIndexCard"></div>
+        <h3 class="sub">Statistik &amp; komposit tahunan <small>Earth Engine</small></h3>
+        <div class="form-grid">
+          <label>Tahun<select id="idxYear"></select></label>
+          <label>Periode<select id="idxMonth"></select></label>
+          <label class="span2">Area analisis
+            <div class="seg" id="maskSeg"><button type="button" data-mask="trees" class="on">Tutupan pohon</button><button type="button" data-mask="region">Seluruh wilayah</button></div></label>
+        </div>
+        <div class="card slim row-between"><div><h4>Bandingkan dua tahun</h4><p class="muted">Geser garis pada peta</p></div><label class="switch"><input type="checkbox" id="compareToggle"><i></i></label></div>
+        <label id="compareYearWrap" class="hidden">Tahun pembanding<select id="idxYearB"></select></label>
+        <button type="button" class="btn primary" id="idxLoad">Tampilkan komposit &amp; statistik</button>
+        <div class="stats" id="idxStats"></div>
+        <div class="card">
+          <div class="row-between"><h4 id="trendTitle">Tren tahunan</h4><button type="button" class="btn ghost small" id="trendBtn">Hitung tren</button></div>
+          <div id="trendChart" class="chart"><p class="muted">Rerata indeks per tahun dari Earth Engine (statistik regional 250 m).</p></div>
+        </div>
+        <details class="method"><summary>Rumus &amp; cara membaca</summary><div id="idxMethod"></div></details>
       </div>
-      <details class="method"><summary>Rumus & cara membaca</summary><div id="idxMethod"></div></details>
+
+      <div id="landFire" class="subpanel hidden">
+        <div class="card">
+          <h4>Titik panas (hotspot) kebakaran <span class="live-dot">REALTIME</span></h4>
+          <p class="muted">Deteksi anomali panas satelit VIIRS/MODIS dari NASA FIRMS (melalui NASA GIBS), diperbarui beberapa jam setelah satelit melintas.</p>
+          <div class="form-grid">
+            <label>Sensor<select id="fireSensor">
+              <option value="VIIRS_NOAA20_Thermal_Anomalies_375m_All">VIIRS NOAA-20 (375 m)</option>
+              <option value="VIIRS_NOAA21_Thermal_Anomalies_375m_All">VIIRS NOAA-21 (375 m)</option>
+              <option value="VIIRS_SNPP_Thermal_Anomalies_375m_All">VIIRS Suomi-NPP (375 m)</option>
+              <option value="MODIS_Combined_Thermal_Anomalies_All">MODIS Terra+Aqua (1 km)</option>
+            </select></label>
+            <label>Rentang<select id="fireDays"><option value="1">Hari terpilih</option><option value="3">3 hari</option><option value="7" selected>7 hari</option></select></label>
+            <label class="span2">Sampai tanggal<input type="date" id="fireDate"></label>
+          </div>
+          <button type="button" class="btn primary" id="fireLoad">Tampilkan titik panas</button>
+        </div>
+        <div class="callout">ⓘ Titik panas = piksel yang jauh lebih panas dari sekitarnya: bisa kebakaran hutan/lahan, pembakaran sampah/jerami, atau sumber panas industri (cerobong, flare). Perlu verifikasi lapangan; awan tebal dapat menyembunyikan api.</div>
+      </div>
+
+      <div id="landEnv" class="subpanel hidden">
+        <div class="seg wide" id="envSeg">
+          <button type="button" data-env="degradation" class="on">Degradasi lahan</button>
+          <button type="button" data-env="erosivity">Erosivitas hujan</button>
+        </div>
+        <p class="muted" id="envDesc"></p>
+        <div class="form-grid">
+          <label id="envYearLabel">Tahun<select id="envYear"></select></label>
+          <label>Area analisis<select id="envMask"><option value="region">Seluruh wilayah</option><option value="trees">Tutupan pohon</option></select></label>
+        </div>
+        <button type="button" class="btn primary" id="envLoad">Tampilkan di peta &amp; hitung</button>
+        <div id="envStats"></div>
+        <details class="method"><summary>Metode</summary><div id="envMethod"></div></details>
+      </div>
+
+      <div id="landCover" class="subpanel hidden">
+        <div class="card">
+          <div class="row-between"><div><h4>Tutupan lahan ESA WorldCover 2021</h4><p class="muted">10 m via Earth Engine: pohon, semak, pertanian, terbangun, air, mangrove, dll. Bukan status legal kawasan.</p></div>
+            <label class="switch"><input type="checkbox" id="lcToggle"><i></i></label></div>
+        </div>
+        <div class="card">
+          <div class="row-between"><div><h4>Citra satelit terkini (warna asli)</h4><p class="muted">NASA VIIRS harian ±375 m, tanpa kunci. Berguna untuk melihat asap, banjir, atau awan hari ini.</p></div>
+            <label class="switch"><input type="checkbox" id="trueColorToggle"><i></i></label></div>
+          <label>Tanggal<input type="date" id="trueColorDate"></label>
+        </div>
+      </div>
     </section>
 
-    <!-- Lingkungan -->
-    <section class="module" data-module="env">
-      <header class="mod-head"><span class="kicker">04 · Kondisi lingkungan</span><h2>DAS, erosivitas & degradasi lahan</h2></header>
+    <!-- Perairan -->
+    <section class="module" data-module="water">
+      <header class="mod-head"><span class="kicker">03 · Perairan</span><h2>DAS, sungai &amp; kualitas air</h2>
+        <p>Daerah aliran sungai, jaringan sungai, dan indikasi pencemaran laut &amp; badan air dari satelit.</p></header>
       <div class="card" id="hydroBox">
         <div class="row-between"><div><h4>Daerah Aliran Sungai</h4><p class="muted" id="dasInfo">KLHK · batas DAS</p></div><label class="switch"><input type="checkbox" id="dasToggle"><i></i></label></div>
         <div class="row-between"><div><h4>Sungai utama</h4><p class="muted" id="sungaiInfo">BIG · skala 1:250.000</p></div><label class="switch"><input type="checkbox" id="sungaiToggle"><i></i></label></div>
         <div id="dasPriority"></div>
       </div>
-      <div class="seg wide" id="envSeg">
-        <button type="button" data-env="erosivity" class="on">Erosivitas</button>
-        <button type="button" data-env="degradation">Degradasi lahan</button>
-        <button type="button" data-env="rainfall">Curah hujan</button>
-      </div>
-      <p class="muted" id="envDesc"></p>
-      <div class="form-grid">
-        <label id="envYearLabel">Tahun<select id="envYear"></select></label>
-        <label>Area analisis<select id="envMask"><option value="region">Seluruh wilayah</option><option value="trees">Tutupan pohon</option></select></label>
-      </div>
-      <button type="button" class="btn primary" id="envLoad">Tampilkan di peta & hitung</button>
-      <div id="envStats"></div>
-      <details class="method"><summary>Metode</summary><div id="envMethod"></div></details>
-    </section>
-    <!-- Kualitas air -->
-    <section class="module" data-module="water">
-      <header class="mod-head"><span class="kicker">05 · Pencemaran air</span><h2>Kualitas air laut & badan air</h2>
-        <p>Indikasi dari citra satelit (Earth Engine). Bukan pengganti uji laboratorium.</p></header>
+      <h3 class="sub">Kualitas air</h3>
       <div class="water-cards" id="waterCards"></div>
+      <div class="card live-card" id="cdseWaterCard"></div>
+      <h3 class="sub">Statistik &amp; komposit tahunan <small>Earth Engine</small></h3>
       <div class="form-grid">
         <label>Tahun<select id="waterYear"></select></label>
         <label>Periode<select id="waterMonth"></select></label>
         <label class="span2">Area fokus statistik<select id="waterAoi"></select></label>
       </div>
-      <button type="button" class="btn primary" id="waterLoad">Tampilkan di peta & hitung</button>
+      <button type="button" class="btn primary" id="waterLoad">Tampilkan komposit &amp; statistik</button>
       <div id="waterStats"></div>
       <div class="card" id="waterTrendCard">
         <div class="row-between"><h4 id="waterTrendTitle">Tren tahunan</h4><button type="button" class="btn ghost small" id="waterTrendBtn">Hitung tren</button></div>
         <div id="waterTrend" class="chart"><p class="muted">Rerata tahunan untuk area fokus terpilih.</p></div>
       </div>
-      <details class="method"><summary>Metode & keterbatasan</summary><div id="waterMethod"></div></details>
-      <div class="callout">ⓘ Satelit tidak dapat mendeteksi logam berat, bakteri (E. coli), atau sebagian besar limbah kimia terlarut. Sungai &lt; ±30 m sulit terbaca. Nilai TSS & klorofil belum dikalibrasi sampel lapangan: gunakan untuk perbandingan relatif antarwaktu/antartempat.</div>
+      <details class="method"><summary>Metode &amp; keterbatasan</summary><div id="waterMethod"></div></details>
+      <div class="callout">ⓘ Satelit tidak dapat mendeteksi logam berat, bakteri (E. coli), atau sebagian besar limbah kimia terlarut. Sungai &lt; ±30 m sulit terbaca. Nilai TSS &amp; klorofil belum dikalibrasi sampel lapangan: gunakan untuk perbandingan relatif antarwaktu/antartempat.</div>
+    </section>
+
+    <!-- Udara -->
+    <section class="module" data-module="air">
+      <header class="mod-head"><span class="kicker">04 · Udara</span><h2>Kualitas udara, cuaca &amp; hujan</h2>
+        <p>Polutan, aerosol, angin, dan curah hujan: data terkini per kabupaten/kota dan citra atmosfer harian.</p></header>
+      <div class="card">
+        <h4>Kondisi terkini per kabupaten/kota <span class="live-dot">REALTIME</span></h4>
+        <div class="form-grid">
+          <label class="span2">Parameter<select id="airParam"></select></label>
+        </div>
+        <div class="row-between"><button type="button" class="btn primary" id="airLoad">Muat data terkini</button>
+          <label class="inline-switch">Panah angin <span class="switch"><input type="checkbox" id="windToggle"><i></i></span></label></div>
+        <div id="airList"></div>
+      </div>
+      <div class="card">
+        <h4>Citra atmosfer harian <span class="live-dot">REALTIME</span></h4>
+        <p class="muted">NASA GIBS: produk satelit global, resolusi kasar (±2–10 km).</p>
+        <div class="form-grid">
+          <label class="span2">Lapisan<select id="gibsLayer"></select></label>
+          <label class="span2">Tanggal<input type="date" id="gibsDate"></label>
+        </div>
+        <button type="button" class="btn ghost" id="gibsLoad">Tampilkan citra atmosfer</button>
+        <p class="fine" id="gibsInfo"></p>
+      </div>
+      <div class="card">
+        <div class="row-between"><div><h4>Curah hujan tahunan</h4><p class="muted">CHIRPS ±5,5 km via Earth Engine (dasar perhitungan erosivitas).</p></div>
+          <button type="button" class="btn ghost small" id="rainLoad">Tampilkan</button></div>
+      </div>
+      <div class="callout">ⓘ Nilai polutan &amp; cuaca per kab/kota berasal dari model (Open-Meteo: CAMS &amp; model cuaca global) di titik pusat wilayah, bukan alat ukur resmi. Untuk status resmi, rujuk ISPU KLHK dan BMKG.</div>
     </section>
   </aside>
 

@@ -2,6 +2,38 @@
 
 Dikembangkan oleh **Ruang Riung Lingkungan**. Mendukung mode terang/gelap (tombol ☾/☀ di kanan atas).
 
+## Modul
+
+| Modul | Isi | Sumber | Realtime? |
+|---|---|---|---|
+| **Hutan & Biodiversitas** | Fungsi kawasan hutan + luas per kab/kota; catatan jenis pohon; habitat badak jawa, macan tutul, owa jawa, surili, elang jawa | KLHK, BIG, GBIF | GBIF diperbarui bulanan |
+| **Daratan** | Indeks citra NDVI/MSARVI/NDWI/NDBI; titik panas kebakaran; degradasi lahan & erosivitas; tutupan lahan; citra harian | Copernicus Sentinel-2, NASA FIRMS/GIBS, Earth Engine | ✅ peta indeks (Copernicus) & titik panas |
+| **Perairan** | DAS & sungai; kekeruhan/TSS, klorofil-a, suhu air, bercak minyak | KLHK, BIG, Copernicus, Earth Engine | ✅ peta TSS & klorofil (Copernicus) |
+| **Udara** | AQI, PM2.5, PM10, NO₂, SO₂, CO, O₃, aerosol, suhu, kelembapan, angin, hujan per kab/kota; citra atmosfer harian; curah hujan tahunan | Open-Meteo (CAMS), NASA GIBS (TROPOMI, MODIS, IMERG), CHIRPS | ✅ |
+
+Statistik dan grafik tren dihitung Google Earth Engine (langsung di versi server, snapshot bulanan di GitHub Pages).
+
+## Sumber realtime & keamanannya
+
+| Sumber | Butuh kunci? | Yang terlihat publik | Risiko |
+|---|---|---|---|
+| NASA GIBS / FIRMS | Tidak | — | Aman |
+| Open-Meteo | Tidak | — | Aman. Gratis untuk nonkomersial (< 10.000 permintaan/hari) |
+| Copernicus Data Space (Sentinel Hub WMS) | Instance ID | Instance ID di kode halaman | Bukan password; orang lain hanya bisa memakai **kuota** Anda. Batasi domain di dashboard |
+| Google Earth Engine (GitHub Actions) | Kunci service account | Tidak ada (tersimpan di GitHub Secrets) | Aman selama file JSON tidak dibagikan |
+
+Jangan pernah menaruh *client secret* OAuth Copernicus atau kunci JSON Earth Engine di frontend atau di repo.
+
+### Mengaktifkan peta realtime Copernicus (opsional)
+
+1. Daftar gratis di https://dataspace.copernicus.eu.
+2. Buka *Sentinel Hub Dashboard* (https://shapps.dataspace.copernicus.eu/dashboard/) → **Configuration Utility → New configuration** (template *Simple WMS*).
+3. Pastikan ada layer dengan ID **`S2L2A`** dan sumber data **Sentinel-2 L2A** (evalscript bebas; website mengirim evalscript sendiri).
+4. Salin **Instance ID** konfigurasi tersebut. Bila tersedia, batasi *allowed referrers* ke `gardaasa524.github.io` dan `127.0.0.1`.
+5. GitHub: *Settings → Secrets and variables → Actions → tab **Variables** → New repository variable* `CDSE_INSTANCE_ID` = instance ID.
+   Untuk versi server: isi `CDSE_INSTANCE_ID=` di `.env`.
+6. Jalankan ulang workflow Pages.
+
 ## Dua cara membuka
 
 | | Versi server (lengkap, live) | Versi GitHub Pages |
