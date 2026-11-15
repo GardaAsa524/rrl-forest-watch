@@ -91,6 +91,29 @@ ENV_LAYERS = {
         ],
         'source': 'MODIS/061/MOD13Q1 · kemiringan regresi linier rerata NDVI tahunan',
     },
+    'erosion': {
+        'label': 'Laju erosi tanah (RUSLE)', 'unit': 'ton/ha/tahun',
+        'min': 0, 'max': 480,
+        'palette': ['1a9850', '91cf60', 'd9ef8b', 'fee08b', 'fc8d59', 'd73027', '7f0000'],
+        'classes': [
+            {'max': 15, 'label': 'Sangat ringan (< 15)', 'color': '#1a9850'},
+            {'max': 60, 'label': 'Ringan (15–60)', 'color': '#a6d96a'},
+            {'max': 180, 'label': 'Sedang (60–180)', 'color': '#fee08b'},
+            {'max': 480, 'label': 'Berat (180–480)', 'color': '#f46d43'},
+            {'max': None, 'label': 'Sangat berat (> 480)', 'color': '#7f0000'},
+        ],
+        'source': 'RUSLE: R CHIRPS (Lenvain) · K OpenLandMap (Williams) · LS MERIT Hydro (Moore & Burch) · C NDVI MODIS',
+    },
+    'forestloss': {
+        'label': 'Kehilangan tutupan pohon 2001–2025', 'unit': 'tahun',
+        'min': 2001, 'max': 2025,
+        'palette': ['ffffb2', 'fed976', 'feb24c', 'fd8d3c', 'f03b20', 'bd0026'],
+        'source': 'Hansen/UMD Global Forest Change v1.13 (30 m), tutupan pohon tahun 2000 ≥ 30%',
+    },
+    'landchange': {
+        'label': 'Alih fungsi lahan', 'unit': 'kelas',
+        'source': 'MODIS MCD12Q1 (IGBP, 500 m): tutupan lahan awal vs akhir periode',
+    },
     'landcover': {
         'label': 'Tutupan lahan WorldCover 2021', 'unit': 'kelas',
         'source': 'ESA/WorldCover/v200',
@@ -164,6 +187,23 @@ WATER_AOIS = {
     'palabuhanratu': {'label': 'Teluk Palabuhanratu', 'bbox': [106.35, -7.08, 106.58, -6.95]},
 }
 
+HANSEN = 'UMD/hansen/global_forest_change_2025_v1_13'
+HANSEN_LAST_YEAR = 2025
+
+# MODIS MCD12Q1 IGBP classes grouped for land-conversion analysis.
+LC_GROUPS = {1: [1, 2, 3, 4, 5], 2: [6, 7, 8, 9, 10], 3: [11], 4: [12, 14], 5: [13], 6: [16], 7: [17]}
+LC_GROUP_NAMES = {1: 'Hutan', 2: 'Semak/savana/rumput', 3: 'Lahan basah', 4: 'Pertanian', 5: 'Terbangun',
+                  6: 'Lahan terbuka', 7: 'Air'}
+LAND_CHANGE = [  # code, label, colour
+    (1, 'Hutan → pertanian', '#f59e0b'),
+    (2, 'Hutan → terbangun', '#dc2626'),
+    (3, 'Hutan → semak/terbuka/lainnya', '#a16207'),
+    (4, 'Pertanian → terbangun', '#be185d'),
+    (5, 'Lainnya → terbangun', '#f472b6'),
+    (6, 'Bukan hutan → hutan (pulih/tanam)', '#16a34a'),
+    (7, 'Perubahan lain', '#94a3b8'),
+]
+
 WORLDCOVER = [
     (10, 'Tutupan pohon', '006400'), (20, 'Semak', 'ffbb22'), (30, 'Padang rumput', 'ffff4c'),
     (40, 'Lahan pertanian', 'f096ff'), (50, 'Terbangun', 'fa0000'), (60, 'Lahan terbuka', 'b4b4b4'),
@@ -210,6 +250,7 @@ class EarthEngineService:
         if not project:
             self.error = 'GOOGLE_CLOUD_PROJECT belum diisi pada .env.'
             return
+        self.project = project
         try:
             ee.Initialize(credentials, project=project) if credentials else ee.Initialize(project=project)
             ee.Number(1).getInfo()  # authenticated server check; no fake-ready state
@@ -439,6 +480,119 @@ class EarthEngineService:
         return slope.rename('degradation'), (start_year, end_year)
 
     @staticmethod
+    def epic_k():
+        """K (Wischmeier/EPIC scale) from topsoil texture & organic carbon, Williams (1995). OpenLandMap 250 m."""
+        sand = ee.Image('OpenLandMap/SOL/SOL_SAND-WFRACTION_USDA-3A1A1A_M/v02').select('b0')
+        clay = ee.Image('OpenLandMap/SOL/SOL_CLAY-WFRACTION_USDA-3A1A1A_M/v02').select('b0')
+        oc = ee.Image('OpenLandMap/SOL/SOL_ORGANIC-CARBON_USDA-6A1C_M/v02').select('b0').multiply(0.5)  # 5 g/kg -> %
+        silt = ee.Image(100).subtract(sand).subtract(clay).max(0)
+        sn1 = ee.Image(1).subtract(sand.divide(100))
+        f_csand = ee.Image(0.2).add(ee.Image(0.3).multiply(
+            sand.multiply(-0.256).multiply(ee.Image(1).subtract(silt.divide(100))).exp()))
+        f_clsi = silt.divide(clay.add(silt).max(1)).pow(0.3)
+        f_orgc = ee.Image(1).subtract(oc.multiply(0.25).divide(oc.add(ee.Image(3.72).subtract(oc.multiply(2.95)).exp())))
+        f_hisand = ee.Image(1).subtract(sn1.multiply(0.7).divide(sn1.add(ee.Image(-5.51).add(sn1.multiply(22.9)).exp())))
+        return f_csand.multiply(f_clsi).multiply(f_orgc).multiply(f_hisand).rename('K')
+
+    SOIL_FOLDER = 'envirowatch'
+
+    def soil_k_image(self):
+        """K raster from the BBSDLP semi-detailed soil map uploaded by scripts/upload_soil_k.py, or None."""
+        def build():
+            parent = f'projects/{self.project}/assets/{self.SOIL_FOLDER}'
+            try:
+                assets = ee.data.listAssets({'parent': parent}).get('assets', [])
+            except Exception:
+                return None
+            ids = sorted(a['id'] for a in assets if a.get('id', '').split('/')[-1].startswith('tanah_k'))
+            if not ids:
+                return None
+            fc = ee.FeatureCollection([ee.FeatureCollection(i) for i in ids]).flatten()
+            return fc.reduceToImage(['K'], ee.Reducer.first()).rename('K')
+        return self._remember('soil_k', 6 * 3600, build)
+
+    def erosion_image(self, year: int):
+        """RUSLE soil loss A = R * K * LS * C * P (ton/ha/year), P = 1.
+
+        Follows the convention common in Indonesian studies: R from the Lenvain formula
+        and K on the Wischmeier/EPIC scale. Indicative only (no field calibration).
+        """
+        r = self.erosivity_image(year)[0].select('erosivity')
+        soil_k = self.soil_k_image()
+        k = soil_k.unmask(self.epic_k()) if soil_k is not None else self.epic_k()
+        # LS: Moore & Burch (1986) with MERIT Hydro upstream area; flow length capped (~300 m).
+        merit = ee.Image('MERIT/Hydro/v1_0_1')
+        slope = ee.Terrain.slope(merit.select('elv')).multiply(3.14159265 / 180)
+        sca = merit.select('upa').multiply(1e6).divide(90).min(300)
+        ls = sca.divide(22.13).pow(0.4).multiply(slope.sin().divide(0.0896).pow(1.3))
+        # C: van der Knijff et al. (2000) from mean annual MODIS NDVI.
+        ndvi = (ee.ImageCollection('MODIS/061/MOD13Q1').filter(ee.Filter.calendarRange(year, year, 'year'))
+                .select('NDVI').mean().multiply(0.0001).clamp(0, 0.95))
+        c = ndvi.multiply(-2).divide(ee.Image(1).subtract(ndvi)).exp()
+        a = r.multiply(k).multiply(ls).multiply(c).rename('erosion')
+        # Built-up (50) and water (80) are not erodible soil.
+        cover = ee.ImageCollection('ESA/WorldCover/v200').first().select('Map')
+        return a.updateMask(cover.neq(50).And(cover.neq(80)))
+
+    @staticmethod
+    def forest_loss_image():
+        """Year of tree-cover loss (2001-2025) where tree cover in 2000 was >= 30%."""
+        h = ee.Image(HANSEN)
+        loss = h.select('lossyear').updateMask(h.select('treecover2000').gte(30)).selfMask()
+        return loss.add(2000).rename('forestloss')
+
+    @staticmethod
+    def land_group(year: int):
+        lc = (ee.ImageCollection('MODIS/061/MCD12Q1').filter(ee.Filter.calendarRange(year, year, 'year'))
+              .first().select('LC_Type1'))
+        out = ee.Image(0)
+        for code, classes in LC_GROUPS.items():
+            out = out.where(lc.remap(classes, [1] * len(classes), 0).eq(1), code)
+        return out.selfMask()
+
+    def land_change_image(self, start: int, end: int):
+        """Grouped transition classes between two MODIS land-cover years (0 = unchanged, masked)."""
+        a, b = self.land_group(start), self.land_group(end)
+        forest_a, forest_b = a.eq(1), b.eq(1)
+        built_b = b.eq(5)
+        out = ee.Image(0)
+        out = out.where(a.neq(b), 7)
+        out = out.where(forest_b.And(forest_a.Not()), 6)
+        out = out.where(built_b.And(a.neq(5)).And(a.neq(1)).And(a.neq(4)), 5)
+        out = out.where(built_b.And(a.eq(4)), 4)
+        out = out.where(forest_a.And(forest_b.Not()).And(built_b.Not()).And(b.neq(4)), 3)
+        out = out.where(forest_a.And(built_b), 2)
+        out = out.where(forest_a.And(b.eq(4)), 1)
+        return out.selfMask().rename('landchange')
+
+    def forest_loss_stats(self, mask: str = 'region', area: str = 'all'):
+        """Area of tree-cover loss per year (km²), 30 m."""
+        self.require_ready()
+        img = self._apply_mask(self.forest_loss_image(), mask, area)
+        area_img = ee.Image.pixelArea().divide(1e6).addBands(img)
+        res = area_img.reduceRegion(ee.Reducer.sum().group(groupField=1, groupName='year'), self.region(area),
+                                    30, bestEffort=True, maxPixels=1e10, tileScale=8).getInfo()
+        per_year = {int(g['year']): g['sum'] for g in res.get('groups', [])}
+        years = list(range(2001, HANSEN_LAST_YEAR + 1))
+        series = [{'year': y, 'km2': round(per_year.get(y, 0.0), 2)} for y in years]
+        return {'layer': 'forestloss', 'mask': mask, 'area': area, 'series': series,
+                'total_km2': round(sum(per_year.values()), 1), 'unit': 'km²',
+                'sampling_scale_m': 30, 'source': ENV_LAYERS['forestloss']['source']}
+
+    def land_change_stats(self, start: int, end: int, area: str = 'all'):
+        self.require_ready()
+        img = self.land_change_image(start, end).clip(self.region(area))
+        area_img = ee.Image.pixelArea().divide(1e6).addBands(img)
+        res = area_img.reduceRegion(ee.Reducer.sum().group(groupField=1, groupName='cls'), self.region(area),
+                                    500, bestEffort=True, maxPixels=1e9).getInfo()
+        per = {int(g['cls']): g['sum'] for g in res.get('groups', [])}
+        rows = [{'label': name, 'color': color, 'area_km2': round(per.get(code, 0.0), 1)}
+                for code, name, color in LAND_CHANGE]
+        return {'layer': 'landchange', 'start_year': start, 'end_year': end, 'area': area,
+                'classes': rows, 'total_km2': round(sum(per.values()), 1), 'sampling_scale_m': 500,
+                'source': ENV_LAYERS['landchange']['source']}
+
+    @staticmethod
     def classify(image, classes):
         """Return integer class image 1..n from ascending thresholds."""
         out = ee.Image(len(classes)).updateMask(image.mask())
@@ -455,14 +609,27 @@ class EarthEngineService:
                     'end_inclusive': (_add_month(months[-1]) - timedelta(days=1)).isoformat(),
                     'months': len(months), 'partial_year': len(months) < 12}
             img = img.select(layer)
+        elif layer == 'erosion':
+            months = self.rain_months(year)
+            img = self.erosion_image(year)
+            meta = {'start': months[0].isoformat(),
+                    'end_inclusive': (_add_month(months[-1]) - timedelta(days=1)).isoformat(),
+                    'months': len(months), 'partial_year': len(months) < 12}
         elif layer == 'degradation':
             img, (y0, y1) = self.degradation_image(year)
             meta = {'trend_start_year': y0, 'trend_end_year': y1}
         elif layer == 'landcover':
             img = ee.ImageCollection('ESA/WorldCover/v200').first().select('Map').rename('landcover')
             meta = {'year': 2021}
+        elif layer == 'forestloss':
+            img = self.forest_loss_image()
+            meta = {'start_year': 2001, 'end_year': HANSEN_LAST_YEAR}
+        elif layer == 'landchange':
+            end = min(year, 2025)
+            img = self.land_change_image(end - 20, end)
+            meta = {'start_year': end - 20, 'end_year': end}
         else:
-            raise ValueError('Layer harus erosivity, rainfall, degradation, atau landcover.')
+            raise ValueError('Layer harus erosivity, erosion, rainfall, degradation, forestloss, landchange, atau landcover.')
         return self._apply_mask(img, mask, area), meta
 
     # ------------------------------------------------------------- map tiles
@@ -500,7 +667,10 @@ class EarthEngineService:
 
         def build():
             image, meta = self.env_image(layer, year, mask, area)
-            if layer == 'landcover':
+            if layer == 'landchange':
+                mapid = image.getMapId({'min': 1, 'max': len(LAND_CHANGE),
+                                        'palette': [c.lstrip('#') for _, _, c in LAND_CHANGE]})
+            elif layer == 'landcover':
                 codes = [c for c, _, _ in WORLDCOVER]
                 remapped = image.remap(codes, list(range(len(codes))))
                 vis = {'min': 0, 'max': len(codes) - 1, 'palette': [p for _, _, p in WORLDCOVER]}
@@ -534,14 +704,15 @@ class EarthEngineService:
 
     def env_statistics(self, layer: str, year: int, mask: str = 'region', area: str = 'all'):
         self.require_ready()
-        if layer not in ('erosivity', 'degradation'):
-            raise ValueError('Statistik lingkungan tersedia untuk erosivity dan degradation.')
+        if layer not in ('erosivity', 'erosion', 'degradation'):
+            raise ValueError('Statistik lingkungan tersedia untuk erosivity, erosion, dan degradation.')
         mask, area = self.check_mask(mask), self.check_area(area)
         image, meta = self.env_image(layer, year, mask, area)
         classes = ENV_LAYERS[layer]['classes']
-        scale = 1000 if layer == 'erosivity' else 250
+        scale = {'erosivity': 1000, 'erosion': 250}.get(layer, 250)
         cls = self.classify(image, classes)
-        reducer = ee.Reducer.mean().combine(ee.Reducer.percentile([10, 90]), sharedInputs=True)
+        # More histogram buckets: the default gives identical P10/P90 for heavily skewed layers.
+        reducer = ee.Reducer.mean().combine(ee.Reducer.percentile([10, 90], None, 4096), sharedInputs=True)
         both = image.rename('v').addBands(cls)
         stats = both.select('v').reduceRegion(reducer, self.region(area), scale, bestEffort=True,
                                               maxPixels=2e8, tileScale=4)

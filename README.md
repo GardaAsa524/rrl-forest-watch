@@ -7,7 +7,7 @@ Dikembangkan oleh **Ruang Riung Lingkungan**. Mendukung mode terang/gelap (tombo
 | Modul | Isi | Sumber | Realtime? |
 |---|---|---|---|
 | **Hutan & Biodiversitas** | Fungsi kawasan hutan + luas per kab/kota; catatan jenis pohon; habitat badak jawa, macan tutul, owa jawa, surili, elang jawa | KLHK, BIG, GBIF | GBIF diperbarui bulanan |
-| **Daratan** | Indeks citra NDVI/MSARVI/NDWI/NDBI; titik panas kebakaran; degradasi lahan & erosivitas; tutupan lahan; citra harian | Copernicus Sentinel-2, NASA FIRMS/GIBS, Earth Engine | ✅ peta indeks (Copernicus) & titik panas |
+| **Daratan** | Indeks citra NDVI/MSARVI/NDWI/NDBI; titik panas kebakaran; **deforestasi 2001–2025** & **alih fungsi lahan 2005→2025**; **bahaya erosi (RUSLE)**, degradasi & erosivitas; tutupan lahan & **jenis tanah**; citra harian | Copernicus Sentinel-2, NASA FIRMS/GIBS, Hansen GFC, MODIS, BBSDLP, Earth Engine | ✅ peta indeks (Copernicus) & titik panas |
 | **Perairan** | DAS & sungai; kekeruhan/TSS, klorofil-a, suhu air, bercak minyak | KLHK, BIG, Copernicus, Earth Engine | ✅ peta TSS & klorofil (Copernicus) |
 | **Udara** | AQI, PM2.5, PM10, NO₂, SO₂, CO, O₃, aerosol, suhu, kelembapan, angin, hujan per kab/kota; citra atmosfer harian; curah hujan tahunan | Open-Meteo (CAMS), NASA GIBS (TROPOMI, MODIS, IMERG), CHIRPS | ✅ |
 
@@ -92,6 +92,17 @@ Website **tidak menerima unggahan file**; data hanya diperbarui oleh admin. Untu
 Peta jenis tegakan (pinus, jati, dll.) belum tersedia. Bila ada data Perhutani, simpan sebagai `data/jenis_tegakan.geojson` (EPSG:4326, atribut `JENIS`/`TEGAKAN`) lalu restart server.
 
 Logo: `scripts/make_logo.py` menghapus latar putih logo dan menyimpan PNG transparan ke `frontend/img/`.
+
+### Erosi (RUSLE) & peta jenis tanah
+
+- `A = R × K × LS × C × P` (ton/ha/tahun). R: Lenvain dari CHIRPS. K: erodibilitas tanah. LS: MERIT Hydro (Moore & Burch). C: NDVI MODIS (van der Knijff). P = 1. Kelas bahaya erosi: < 15, 15–60, 60–180, 180–480, > 480 ton/ha/tahun.
+- Peta tanah semi detail BBSDLP (1:50.000) dipotong ke wilayah: `scripts\build_data.py --only tanah` → `data/tanah.geojson` (detail) & `data/tanah_web.geojson` (website).
+- **Nilai K per jenis tanah**: peta BBSDLP hanya berisi nama jenis tanah. Isi kolom `k` & `sumber` di `data/k_tanah.csv` (68 jenis, dibuat dengan `scripts\upload_soil_k.py --template`) dari referensi/lab, lalu jalankan `scripts\upload_soil_k.py` untuk mengunggahnya ke Earth Engine. Selama belum diisi, K memakai tekstur OpenLandMap (perbedaan antarjenis tanah kecil).
+
+### Deforestasi & alih fungsi lahan
+
+- Kehilangan tutupan pohon 2001–2025: Hansen/UMD GFC v1.13 (30 m, tutupan pohon 2000 ≥ 30%). Termasuk tebang panen hutan tanaman, bukan hanya deforestasi permanen.
+- Alih fungsi lahan 2005→2025: MODIS MCD12Q1 (500 m), indikatif untuk tren regional.
 
 ### Catatan metode singkat
 

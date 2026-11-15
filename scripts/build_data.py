@@ -162,15 +162,63 @@ def kabupaten(src: Path):
     write(out, 'kabupaten.geojson')
 
 
+def tanah(src: Path, area: gpd.GeoDataFrame):
+    """Peta tanah semi detail BBSDLP (1:50.000), dipotong & digabung per jenis tanah utama."""
+    shp = next(src.glob('SHP JENIS TANAH*/*.shp'))
+    print(f'Jenis tanah: {shp} (besar, mohon tunggu)...', flush=True)
+    gdf = gpd.read_file(shp, bbox=tuple(area.total_bounds), engine='pyogrio',
+                        columns=['jntnh1', 'jntnh2', 'jntnh3', 'kd_sl'])
+    print(f'  {len(gdf)} poligon di kotak wilayah', flush=True)
+    gdf['geometry'] = clean(gdf.geometry)
+    gdf = gdf[gdf.geometry.notna()]
+    gdf = gpd.clip(gdf, area.union_all())
+    gdf['jenis'] = gdf['jntnh1'].fillna('Tidak teridentifikasi').str.strip()
+    gdf['kelompok'] = gdf['jenis'].str.split().str[0].str.capitalize()
+    # Dominant association partners per soil type (for the popup).
+    assoc = (gdf.assign(a=gdf['jntnh2'].fillna('') + ' / ' + gdf['jntnh3'].fillna(''))
+             .groupby('jenis')['a'].agg(lambda x: x.value_counts().index[0].strip(' /')))
+    out = gdf.dissolve(by=['kelompok', 'jenis'], as_index=False)[['kelompok', 'jenis', 'geometry']]
+    out['asosiasi_umum'] = out['jenis'].map(assoc).replace('', None)
+    out['geometry'] = clean(out.geometry.simplify(0.0004, preserve_topology=True))
+    out = out[out.geometry.notna()]
+    out['luas_km2'] = (out.to_crs(32748).area / 1e6).round(1)
+    write(out.sort_values('luas_km2', ascending=False), 'tanah.geojson', precision=4)
+    finish_tanah()
+
+
+# Map units in the BBSDLP legend that are not soil (no erodibility value is assigned to them).
+NON_SOIL = {'Permukiman': 'Permukiman', 'Tubuh': 'Tubuh air', 'Bandar': 'Bandar udara',
+            'Galian/': 'Galian/tambang', 'Singkapan': 'Singkapan batuan'}
+OTHER_UNITS = {'Lahan': 'Lahan rusak', 'Pulau-pulau': 'Pulau kecil', 'Gawir': 'Gawir'}
+
+
+def finish_tanah():
+    """Tidy class names, flag non-soil units, and write a lighter copy for the browser."""
+    gdf = gpd.read_file(DATA_DIR / 'tanah.geojson')
+    # Accept raw BBSDLP keys and already-renamed values so the step is idempotent.
+    gdf['bukan_tanah'] = gdf['kelompok'].isin(set(NON_SOIL) | set(NON_SOIL.values()))
+    gdf['kelompok'] = gdf['kelompok'].replace({**NON_SOIL, **OTHER_UNITS})
+    write(gdf, 'tanah.geojson', precision=4)  # detailed: Earth Engine upload (scripts/upload_soil_k.py)
+    # Light copy for the browser: drop slivers < 0.15 km² (invisible at regional zoom) and simplify more.
+    parts = gdf.explode(index_parts=False)
+    parts = parts[parts.to_crs(32748).area > 150_000]
+    web = parts.dissolve(by=['kelompok', 'jenis'], as_index=False, aggfunc='first')
+    web['geometry'] = clean(web.geometry.simplify(0.0015, preserve_topology=True))
+    write(web[web.geometry.notna()], 'tanah_web.geojson', precision=4)  # light: website layer
+    print(gdf.groupby('kelompok')['luas_km2'].sum().sort_values(ascending=False).round(0).to_string(), flush=True)
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--source', required=True, help='Folder induk data vektor (berisi Kawasan_Hutan_2023, dst.)')
-    ap.add_argument('--only', nargs='*', help='Bangun hanya lapisan tertentu: batas kawasan das sungai kabupaten')
+    ap.add_argument('--only', nargs='*', help='Bangun hanya lapisan tertentu: batas kawasan das sungai kabupaten tanah')
     args = ap.parse_args()
     src = Path(args.source)
-    only = set(args.only or ['batas', 'kawasan', 'das', 'sungai', 'kabupaten'])
+    only = set(args.only or ['batas', 'kawasan', 'das', 'sungai', 'kabupaten', 'tanah'])
     area = None
-    if only & {'batas', 'das', 'sungai', 'kawasan'}:
+    if only & {'tanah'} and (DATA_DIR / 'batas_wilayah.geojson').exists() and not only & {'batas'}:
+        area = gpd.read_file(DATA_DIR / 'batas_wilayah.geojson')  # reuse boundary, no Earth Engine needed
+    if only & {'batas', 'das', 'sungai', 'kawasan'} or (area is None and 'tanah' in only):
         print('Batas wilayah (FAO GAUL via Earth Engine)...')
         area = region()
     if 'kawasan' in only:
@@ -181,4 +229,6 @@ if __name__ == '__main__':
         sungai(src, area)
     if 'kabupaten' in only:
         kabupaten(src)
+    if 'tanah' in only:
+        tanah(src, area)
     print('Selesai.')

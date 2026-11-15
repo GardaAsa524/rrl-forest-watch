@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/static/styles.css?v=12">
+  <link rel="stylesheet" href="/static/styles.css?v=15">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="/static/app.js?v=12"></script>
-  <script defer src="/static/live.js?v=12"></script>
+  <script defer src="/static/app.js?v=15"></script>
+  <script defer src="/static/live.js?v=15"></script>
 </head>
 <body>
 <div class="shell" id="shell">
@@ -143,8 +143,9 @@
       <div class="seg wide" id="landSeg">
         <button type="button" data-land="index" class="on">Indeks citra</button>
         <button type="button" data-land="fire">Kebakaran</button>
-        <button type="button" data-land="env">Degradasi &amp; erosi</button>
-        <button type="button" data-land="cover">Tutupan lahan</button>
+        <button type="button" data-land="defor">Deforestasi</button>
+        <button type="button" data-land="env">Erosi &amp; degradasi</button>
+        <button type="button" data-land="cover">Lahan &amp; tanah</button>
       </div>
 
       <div id="landIndex" class="subpanel">
@@ -187,9 +188,30 @@
         <div class="callout">ⓘ Titik panas = piksel yang jauh lebih panas dari sekitarnya: bisa kebakaran hutan/lahan, pembakaran sampah/jerami, atau sumber panas industri (cerobong, flare). Perlu verifikasi lapangan; awan tebal dapat menyembunyikan api.</div>
       </div>
 
+      <div id="landDefor" class="subpanel hidden">
+        <div class="card">
+          <h4>Kehilangan tutupan pohon 2001–2025</h4>
+          <p class="muted">Hansen/UMD Global Forest Change (30 m): piksel bertutupan pohon ≥ 30% pada tahun 2000 yang kemudian hilang. Warna = tahun kehilangan.</p>
+          <label>Area analisis<select id="forestMask"><option value="region">Seluruh wilayah</option><option value="trees">Tutupan pohon WorldCover 2021</option></select></label>
+          <button type="button" class="btn primary" id="forestLoad">Tampilkan peta &amp; grafik per tahun</button>
+          <div id="forestStats"></div>
+        </div>
+        <div class="card">
+          <h4>Alih fungsi lahan 20 tahun (2005 → 2025)</h4>
+          <p class="muted">Perbandingan tutupan lahan MODIS awal dan akhir periode: hutan → pertanian/terbangun, pertanian → terbangun, dan pemulihan hutan.</p>
+          <button type="button" class="btn ghost" id="changeLoad">Tampilkan peta alih fungsi</button>
+          <div id="changeStats"></div>
+        </div>
+        <details class="method"><summary>Metode &amp; keterbatasan</summary>
+          <p><b>Kehilangan tutupan pohon</b> (Hansen et al. 2013, v1.13) mencakup deforestasi, tebang panen hutan tanaman (pinus, jati, karet), kebakaran, dan bencana. Tidak semua kehilangan = deforestasi permanen; sebagian kembali ditanam. Gunakan bersama peta kawasan hutan untuk melihat lokasinya (produksi vs lindung/konservasi).</p>
+          <p><b>Alih fungsi lahan</b> memakai MODIS MCD12Q1 (IGBP, 500 m), dikelompokkan menjadi hutan, semak/savana, lahan basah, pertanian, terbangun, lahan terbuka, dan air. Resolusi kasar dan kebun campuran di Jawa sering berganti kelas antara hutan dan pertanian, jadi angka bersifat indikatif untuk tren regional, bukan per persil.</p>
+        </details>
+      </div>
+
       <div id="landEnv" class="subpanel hidden">
         <div class="seg wide" id="envSeg">
-          <button type="button" data-env="degradation" class="on">Degradasi lahan</button>
+          <button type="button" data-env="erosion" class="on">Bahaya erosi</button>
+          <button type="button" data-env="degradation">Degradasi lahan</button>
           <button type="button" data-env="erosivity">Erosivitas hujan</button>
         </div>
         <p class="muted" id="envDesc"></p>
@@ -203,6 +225,7 @@
       </div>
 
       <div id="landCover" class="subpanel hidden">
+        <div id="tanahBox" class="card"></div>
         <div class="card">
           <div class="row-between"><div><h4>Tutupan lahan ESA WorldCover 2021</h4><p class="muted">10 m via Earth Engine: pohon, semak, pertanian, terbangun, air, mangrove, dll. Bukan status legal kawasan.</p></div>
             <label class="switch"><input type="checkbox" id="lcToggle"><i></i></label></div>

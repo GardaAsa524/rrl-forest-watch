@@ -148,7 +148,7 @@ def build(docs: Path, only: set[str] | None = None) -> dict:
                               lambda idx=idx, y=y, mask=mask: service.statistics(idx, y, 0, mask, 'all'))
 
     # Environment: erosivity / rainfall / degradation for the last full year, land cover 2021.
-    for layer in ('erosivity', 'rainfall', 'degradation'):
+    for layer in ('erosivity', 'erosion', 'rainfall', 'degradation'):
         spec = ENV_LAYERS[layer]
         vis = {'min': spec['min'], 'max': spec['max'], 'palette': spec['palette']}
         for mask in ('region', 'trees'):
@@ -158,6 +158,21 @@ def build(docs: Path, only: set[str] | None = None) -> dict:
             if layer != 'rainfall':
                 snap.stat_job(f'env_{layer}_{last_full}_{mask}_all',
                               lambda layer=layer, mask=mask: service.env_statistics(layer, last_full, mask, 'all'))
+    # Deforestation (Hansen) & 20-year land conversion (MODIS).
+    from app.gee_service import HANSEN_LAST_YEAR, LAND_CHANGE
+    fl = ENV_LAYERS['forestloss']
+    for mask in ('region', 'trees'):
+        snap.map_job(f'env_forestloss_{HANSEN_LAST_YEAR}_{mask}',
+                     lambda mask=mask: (service.env_image('forestloss', HANSEN_LAST_YEAR, mask, 'all')[0],
+                                        {'min': fl['min'], 'max': fl['max'], 'palette': fl['palette']}),
+                     {'layer': 'forestloss', 'year': HANSEN_LAST_YEAR, 'mask': mask, 'area': 'all',
+                      'start_year': 2001, 'end_year': HANSEN_LAST_YEAR})
+        snap.stat_job(f'forestloss_{mask}_all', lambda mask=mask: service.forest_loss_stats(mask, 'all'))
+    snap.map_job('env_landchange_2025_region',
+                 lambda: (service.env_image('landchange', 2025, 'region', 'all')[0],
+                          {'min': 1, 'max': len(LAND_CHANGE), 'palette': [c.lstrip('#') for _, _, c in LAND_CHANGE]}),
+                 {'layer': 'landchange', 'year': 2025, 'mask': 'region', 'area': 'all', 'start_year': 2005, 'end_year': 2025})
+    snap.stat_job('landchange_2025_all', lambda: service.land_change_stats(2005, 2025, 'all'))
     codes = [c for c, _, _ in WORLDCOVER]
     lc_vis = {'min': 0, 'max': len(codes) - 1, 'palette': [p for _, _, p in WORLDCOVER]}
     for mask in ('region', 'trees'):

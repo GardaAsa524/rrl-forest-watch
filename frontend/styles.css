@@ -336,3 +336,7 @@ input[type=date]{background:var(--surface-2);border:1px solid var(--line);border
 .map-toggle{background:var(--glass);backdrop-filter:blur(8px);border-radius:12px;padding:6px 12px;font-size:var(--fs-xs);font-weight:700;color:var(--ink-2);box-shadow:var(--shadow-sm)}
 .map-toggle[aria-pressed=true]{background:var(--brand-2);color:#fff}
 .interp-canvas{pointer-events:none;transition:opacity .25s}
+
+/* Tab Daratan: 5 tombol boleh membungkus ke baris berikutnya */
+#landSeg{flex-wrap:wrap}
+#landSeg button{flex:1 1 30%;white-space:nowrap}

@@ -15,7 +15,7 @@ const IUCN_ID = {CR: 'Kritis', EN: 'Genting', VU: 'Rentan', NT: 'Hampir terancam
 
 const S = {
   status: null, ready: false, area: 'all', module: 'overview', currentYear: new Date().getFullYear(),
-  index: 'ndvi', mask: 'trees', env: 'degradation', bio: 'forest', land: 'index',
+  index: 'ndvi', mask: 'trees', env: 'erosion', bio: 'forest', land: 'index',
   map: null, base: null, boundary: null, layers: new Map(), busy: 0, compare: false,
   gbif: {}, vectors: {}, reloaders: new Map(), skipClick: false,
 };
@@ -48,6 +48,8 @@ function resolveApi(path) {
   if (p === '/api/water/map') return `api/maps/water_${q('layer')}_${q('year')}_${q('month', '0')}.json`;
   if (p === '/api/statistics') return `api/stats/index_${q('index', 'ndvi')}_${q('year')}_${q('month', '0')}_${q('mask', 'trees') === 'province' ? 'region' : q('mask', 'trees')}_${q('area', 'all')}.json`;
   if (p === '/api/env/statistics') return `api/stats/env_${q('layer')}_${q('year')}_${mask}_${q('area', 'all')}.json`;
+  if (p === '/api/env/forestloss') return `api/stats/forestloss_${mask}_${q('area', 'all')}.json`;
+  if (p === '/api/env/landchange') return `api/stats/landchange_${q('end', '2025')}_${q('area', 'all')}.json`;
   if (p === '/api/water/statistics') return `api/stats/water_${q('layer')}_${q('year')}_${q('month', '0')}_${q('area', 'all')}_${q('aoi', 'all')}.json`;
   throw new Error('Fitur ini membutuhkan server EnviroWatch (Earth Engine); versi GitHub Pages hanya statis.');
 }
@@ -169,7 +171,7 @@ function syncToggles() {
   $('#habitatToggle').checked = S.layers.has('habitat');
   $$('.sp[data-id]').forEach((el) => el.classList.toggle('on', S.layers.has('sp:' + el.dataset.id)));
   $$('.sp input[type=checkbox]').forEach((i) => { i.checked = S.layers.has('sp:' + i.dataset.id); });
-  for (const k of ['kawasan', 'tegakan', 'das', 'sungai', 'kabupaten']) { const t = $(`#${k}Toggle`); if (t) t.checked = S.layers.has('vec:' + k); }
+  for (const k of ['kawasan', 'tegakan', 'das', 'sungai', 'kabupaten', 'tanah']) { const t = $(`#${k}Toggle`); if (t) t.checked = S.layers.has('vec:' + k); }
 }
 
 function legendGradient(title, palette, min, max, low = '', high = '') {
@@ -259,7 +261,7 @@ function renderSources() {
   const items = [
     [S.ready ? 'ok' : 'off', 'Google Earth Engine', S.ready ? 'Terhubung. Sentinel-2, CHIRPS, MODIS, WorldCover, SRTM siap.' : (S.status?.error || 'Belum terhubung.')],
     [S.gbif.animals ? 'ok' : '', 'GBIF · catatan biodiversitas', S.gbif.animals ? `Diperbarui ${new Date(S.gbif.animals.fetched * 1000).toLocaleDateString('id-ID')}` : 'Dimuat saat modul Biodiversitas dibuka.'],
-    vec('kawasan', 'Kawasan hutan'), vec('das', 'Daerah Aliran Sungai'), vec('sungai', 'Sungai'),
+    vec('kawasan', 'Kawasan hutan'), vec('das', 'Daerah Aliran Sungai'), vec('sungai', 'Sungai'), vec('tanah', 'Jenis tanah'), vec('kabupaten', 'Batas kabupaten/kota'),
     ...(cat.tegakan?.available ? [vec('tegakan', 'Jenis tegakan')] : []),
     [S.status?.cdse?.instance ? 'ok' : 'off', 'Copernicus Data Space · Sentinel-2 realtime', S.status?.cdse?.instance ? 'Aktif: peta indeks & kualitas air 10 m terbaru.' : 'Belum dikonfigurasi (CDSE_INSTANCE_ID).'],
     ['ok', 'NASA GIBS / FIRMS', 'Titik panas, citra harian, aerosol, NO₂, SO₂, CO, hujan (tanpa kunci).'],
@@ -282,7 +284,7 @@ async function getVector(kind) {
 }
 
 async function loadVector(kind) {
-  const box = $(kind === 'kawasan' ? '#kawasanBox' : '#tegakanBox');
+  const box = $(`#${kind}Box`);
   if (!S.vectors[kind]) box.innerHTML = '<div class="skeleton"></div>';
   try { await getVector(kind); }
   catch (err) { box.innerHTML = `<p class="muted">Gagal memuat: ${esc(err.message)}</p>`; return; }
@@ -305,7 +307,7 @@ function summarize(d) {
 
 function renderVector(kind) {
   const d = S.vectors[kind];
-  const box = $(kind === 'kawasan' ? '#kawasanBox' : '#tegakanBox');
+  const box = $(`#${kind}Box`);
   // Layers without data are simply not shown (no empty "data belum tersedia" card).
   box.classList.toggle('hidden', !d.available);
   if (!d.available) { box.innerHTML = ''; return; }
@@ -313,7 +315,7 @@ function renderVector(kind) {
   const total = rows.reduce((a, r) => a + r.size, 0);
   const n = rows.reduce((a, r) => a + r.n, 0);
   const detail = rows.some((r) => r.sub.size > 1)
-    ? `<details class="method"><summary>Rincian jenis kawasan</summary>${rows.map((r) => r.sub.size
+    ? `<details class="method"><summary>Rincian ${kind === 'tanah' ? 'jenis tanah' : 'jenis kawasan'}</summary>${rows.map((r) => r.sub.size
       ? `<p><b>${esc(r.label)}</b><br>${[...r.sub].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${esc(k)}: ${fmtInt(v)} ${d.unit}`).join('<br>')}</p>` : '').join('')}</details>`
     : '';
   box.innerHTML = `<div class="row-between"><div><h4>${esc(d.title)}</h4><p class="muted">${n} poligon · ${fmtInt(total)} ${d.unit} · ${esc(S.status?.areas?.[S.area] || '')}</p></div>
@@ -337,6 +339,7 @@ function popupHtml(d, p) {
 const VEC_STYLE = {
   kawasan: (f) => ({color: f.properties._color, weight: 1, fillColor: f.properties._color, fillOpacity: .5}),
   tegakan: (f) => ({color: f.properties._color, weight: 1, fillColor: f.properties._color, fillOpacity: .5}),
+  tanah: (f) => ({color: f.properties._color, weight: .6, fillColor: f.properties._color, fillOpacity: .6}),
   das: (f) => ({color: f.properties._color, weight: f.properties._class === 'DAS prioritas' ? 2 : 1,
     fillColor: f.properties._color, fillOpacity: f.properties._class === 'DAS prioritas' ? .12 : .04}),
   sungai: () => ({color: '#0284c7', weight: 1.6, opacity: .9}),
@@ -668,6 +671,8 @@ function lineChart(pts, color) {
 
 /* -------------------------------------------------------------- ENV */
 const ENV_TEXT = {
+  erosion: {desc: 'Perkiraan laju erosi tanah (ton/ha/tahun) dengan model RUSLE. Merah = bahaya erosi tinggi: lereng curam, tanah peka, vegetasi jarang, hujan deras.',
+    year: 'Tahun', method: '<code>A = R × K × LS × C × P</code>. R = erosivitas hujan (Lenvain, CHIRPS). K = erodibilitas tanah: dari peta tanah semi detail BBSDLP bila tersedia, selain itu dari tekstur & karbon organik OpenLandMap (Williams/EPIC). LS = panjang & kemiringan lereng dari MERIT Hydro (Moore & Burch, panjang aliran dibatasi ±300 m). C = penutupan vegetasi dari NDVI MODIS (van der Knijff). P = 1 (tidak ada data tindakan konservasi, sehingga hasil cenderung lebih tinggi di lahan berteras). Permukiman & badan air tidak dihitung. Kelas bahaya: sangat ringan < 15, ringan 15–60, sedang 60–180, berat 180–480, sangat berat > 480 ton/ha/tahun. Hasil bersifat indikatif, belum dikalibrasi pengukuran lapangan.'},
   erosivity: {desc: 'Kemampuan hujan menimbulkan erosi (faktor R). Tinggi = hujan deras & sering, potensi erosi besar terutama di lereng terbuka.',
     year: 'Tahun', method: 'R bulanan dihitung dengan rumus Lenvain yang lazim dipakai di Indonesia: <code>R = 2,21 × P<sup>1,36</sup></code>, P = curah hujan bulanan (cm) dari CHIRPS harian (~5,5 km). R tahunan = jumlah R bulanan. Hanya bulan yang lengkap di CHIRPS dipakai. Kelas (rendah < 1.500, sedang < 2.500, tinggi < 3.500, sangat tinggi) bersifat relatif untuk perbandingan wilayah.'},
   degradation: {desc: 'Tren kehijauan jangka panjang. Penurunan NDVI konsisten menjadi indikasi degradasi lahan, kenaikan menjadi indikasi pemulihan.',
@@ -846,6 +851,70 @@ async function loadWaterTrend() {
   } finally { btn.disabled = false; }
 }
 
+/* --------------------------------------------- DEFORESTATION & LAND CHANGE */
+function barChart(series, color) {
+  const W = 400, H = 170, P = {l: 34, r: 8, t: 12, b: 24};
+  const max = Math.max(1, ...series.map((d) => d.km2));
+  const bw = (W - P.l - P.r) / series.length;
+  const Y = (v) => P.t + (1 - v / max) * (H - P.t - P.b);
+  const ticks = [0, max / 2, max];
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafik kehilangan tutupan pohon per tahun">
+    ${ticks.map((t) => `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="#e2e9e1"/><text x="${P.l - 5}" y="${Y(t) + 3}" font-size="9" text-anchor="end" fill="#7a8f88">${Math.round(t)}</text>`).join('')}
+    ${series.map((d, i) => `<rect x="${P.l + i * bw + 1}" y="${Y(d.km2)}" width="${Math.max(1, bw - 2)}" height="${H - P.b - Y(d.km2)}" fill="${color}" rx="1.5"><title>${d.year}: ${fmt(d.km2, 1)} km²</title></rect>` +
+      (i % 4 === 0 || i === series.length - 1 ? `<text x="${P.l + i * bw + bw / 2}" y="${H - 8}" font-size="9" text-anchor="middle" fill="#7a8f88">${d.year}</text>` : '')).join('')}
+  </svg>`;
+}
+
+async function loadForestLoss() {
+  if (needEE()) return;
+  const spec = S.status.env_layers.forestloss;
+  const mask = $('#forestMask').value;
+  const btn = $('#forestLoad'); btn.disabled = true;
+  setCompare(false);
+  if (S.layers.has('rasterB')) removeLayer('rasterB');
+  const run = () => eeTileLayer('rasterA', `/api/env/map?layer=forestloss&year=2025&mask=${mask}&area=${S.area}`, {
+    pane: 'rasterA', label: 'Kehilangan tutupan pohon 2001–2025', color: '#bd0026',
+    legend: legendGradient('Tahun kehilangan tutupan pohon', spec.palette, 2001, 2025, 'lama', 'baru'),
+  });
+  try { await run(); S.reloaders.set('rasterA', run); }
+  catch (err) { toast('Peta deforestasi gagal dimuat', ' ' + err.message, 'err'); }
+  const box = $('#forestStats');
+  box.innerHTML = '<div class="skeleton"></div>';
+  try {
+    const d = await api(`/api/env/forestloss?mask=${mask}&area=${S.area}`);
+    const peak = d.series.reduce((a, b) => (b.km2 > a.km2 ? b : a), d.series[0]);
+    const last5 = d.series.slice(-5).reduce((a, b) => a + b.km2, 0);
+    box.innerHTML = `<div class="stats"><div class="stat"><span>Total hilang 2001–2025</span><strong>${fmtInt(d.total_km2)} km²</strong><small>${fmtInt(d.total_km2 * 100)} ha</small></div>
+      <div class="stat"><span>Tahun tertinggi</span><strong>${peak.year}</strong><small>${fmt(peak.km2, 1)} km² · 5 thn terakhir ${fmtInt(last5)} km²</small></div></div>
+      <div class="chart">${barChart(d.series, '#dc2626')}</div><p class="fine">${esc(d.source)}</p>`;
+  } catch (err) { box.innerHTML = `<p class="muted">Statistik gagal: ${esc(err.message)}</p>`; }
+  finally { btn.disabled = false; }
+}
+
+async function loadLandChange() {
+  if (needEE()) return;
+  const classes = S.status.land_change_classes || [];
+  const btn = $('#changeLoad'); btn.disabled = true;
+  setCompare(false);
+  if (S.layers.has('rasterB')) removeLayer('rasterB');
+  const run = () => eeTileLayer('rasterA', `/api/env/map?layer=landchange&year=2025&mask=region&area=${S.area}`, {
+    pane: 'rasterA', label: 'Alih fungsi lahan 2005 → 2025', color: '#dc2626',
+    legend: legendCats('Alih fungsi lahan 2005 → 2025', classes),
+  });
+  try { await run(); S.reloaders.set('rasterA', run); }
+  catch (err) { toast('Peta alih fungsi gagal dimuat', ' ' + err.message, 'err'); }
+  const box = $('#changeStats');
+  box.innerHTML = '<div class="skeleton"></div>';
+  try {
+    const d = await api(`/api/env/landchange?end=2025&area=${S.area}`);
+    const total = d.classes.reduce((a, c) => a + c.area_km2, 0);
+    box.innerHTML = `<div class="dist">${d.classes.map((c) => `<i title="${esc(c.label)}" style="width:${total ? c.area_km2 / total * 100 : 0}%;background:${c.color}"></i>`).join('')}</div>
+      <div class="dist-legend">${d.classes.map((c) => `<div><i style="background:${c.color}"></i>${esc(c.label)}<b>${fmtInt(c.area_km2)} km²</b></div>`).join('')}</div>
+      <p class="fine">Total area berubah ${fmtInt(d.total_km2)} km² · sampel ${d.sampling_scale_m} m · ${esc(d.source)}</p>`;
+  } catch (err) { box.innerHTML = `<p class="muted">Statistik gagal: ${esc(err.message)}</p>`; }
+  finally { btn.disabled = false; }
+}
+
 /* ---------------------------------------------------------- POINT */
 async function onMapClick(e) {
   if (S.skipClick) { S.skipClick = false; return; }
@@ -914,9 +983,10 @@ function wire() {
   $$('#landSeg button').forEach((b) => b.onclick = () => {
     S.land = b.dataset.land;
     $$('#landSeg button').forEach((x) => x.classList.toggle('on', x === b));
-    for (const [k, id] of [['index', '#landIndex'], ['fire', '#landFire'], ['env', '#landEnv'], ['cover', '#landCover']]) {
+    for (const [k, id] of [['index', '#landIndex'], ['fire', '#landFire'], ['defor', '#landDefor'], ['env', '#landEnv'], ['cover', '#landCover']]) {
       $(id).classList.toggle('hidden', S.land !== k);
     }
+    if (S.land === 'cover') loadVector('tanah');
   });
   $$('#maskSeg button').forEach((b) => b.onclick = () => {
     S.mask = b.dataset.mask;
@@ -936,6 +1006,8 @@ function wire() {
     renderEnvInfo();
   });
   $('#envLoad').onclick = loadEnv;
+  $('#forestLoad').onclick = loadForestLoss;
+  $('#changeLoad').onclick = loadLandChange;
   $('#waterLoad').onclick = loadWater;
   $('#waterTrendBtn').onclick = loadWaterTrend;
   $('#sheetHandle').onclick = () => {

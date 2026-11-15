@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from . import biodiversity, vectors
 from .config import ROOT, PROJECT, SCHEDULER_ENABLED, CACHE_DIR, AREAS, CDSE_INSTANCE_ID, CDSE_LAYER
 from .gee_service import (EarthEngineUnavailable, service, INDICES, ENV_LAYERS, WORLDCOVER,
-                          WATER_LAYERS, WATER_AOIS, FIRST_YEAR, ENV_FIRST_YEAR)
+                          WATER_LAYERS, WATER_AOIS, LAND_CHANGE, FIRST_YEAR, ENV_FIRST_YEAR)
 from .store import get_stat, put_stat, stat_key
 
 log = logging.getLogger('rrl')
@@ -77,6 +77,7 @@ def status():
         'env_layers': ENV_LAYERS,
         'water_layers': WATER_LAYERS,
         'water_aois': WATER_AOIS,
+        'land_change_classes': [{'code': c, 'label': n, 'color': col} for c, n, col in LAND_CHANGE],
         'cdse': {'instance': CDSE_INSTANCE_ID, 'layer': CDSE_LAYER} if CDSE_INSTANCE_ID else None,
         'worldcover': [{'code': c, 'label': n, 'color': '#' + p} for c, n, p in WORLDCOVER],
         'scheduler_enabled': bool(_scheduler and _scheduler.running),
@@ -173,6 +174,36 @@ def water_statistics(layer: str, year: int = Query(ge=2000, le=2100), month: int
         if not force and (cached := get_stat(key)):
             return {**cached, 'from_cache': True}
         data = service.water_statistics(layer, year, month, area, aoi)
+        put_stat(key, data)
+        return {**data, 'from_cache': False}
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@app.get('/api/env/forestloss')
+def forest_loss(mask: str = 'region', area: str = 'all', force: bool = False):
+    """Annual tree-cover loss 2001-2025 (Hansen), km² per year."""
+    try:
+        mask, area = service.check_mask(mask), service.check_area(area)
+        key = stat_key('forestloss', mask=mask, area=area)
+        if not force and (cached := get_stat(key)):
+            return {**cached, 'from_cache': True}
+        data = service.forest_loss_stats(mask, area)
+        put_stat(key, data)
+        return {**data, 'from_cache': False}
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@app.get('/api/env/landchange')
+def land_change(end: int = Query(2025, ge=2021, le=2025), area: str = 'all', force: bool = False):
+    """Land-cover conversion over 20 years (MODIS), km² per transition class."""
+    try:
+        area = service.check_area(area)
+        key = stat_key('landchange', end=end, area=area)
+        if not force and (cached := get_stat(key)):
+            return {**cached, 'from_cache': True}
+        data = service.land_change_stats(end - 20, end, area)
         put_stat(key, data)
         return {**data, 'from_cache': False}
     except Exception as exc:
