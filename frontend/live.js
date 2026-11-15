@@ -206,6 +206,89 @@ function colorFor(param, v, lo, hi) {
   return SEQ[Math.min(SEQ.length - 1, Math.max(0, Math.floor(t * SEQ.length)))];
 }
 
+/** Smooth colour for a value: interpolates between category centres (or the sequential ramp). */
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function rampFor(param, lo, hi) {
+  const sp = AIR_PARAMS[param];
+  let stops;
+  if (sp.scale) {
+    let prev = 0;
+    stops = sp.scale.map(([max, color]) => {
+      const top = max > 1e8 ? prev * 1.4 : max;
+      const mid = (prev + top) / 2;
+      prev = top;
+      return [mid, hexRgb(color)];
+    });
+  } else {
+    stops = SEQ.map((c, i) => [lo + (hi - lo) * i / (SEQ.length - 1), hexRgb(c)]);
+  }
+  return (v) => {
+    if (v <= stops[0][0]) return stops[0][1];
+    for (let i = 1; i < stops.length; i++) {
+      if (v <= stops[i][0]) {
+        const [a, ca] = stops[i - 1], [b, cb] = stops[i], t = (v - a) / (b - a || 1);
+        return [0, 1, 2].map((k) => Math.round(ca[k] + (cb[k] - ca[k]) * t));
+      }
+    }
+    return stops.at(-1)[1];
+  };
+}
+
+/* Inverse-distance-weighted surface drawn on a canvas (like IQAir's map). Fades out far from stations. */
+const InterpLayer = L.Layer.extend({
+  initialize(points, ramp) { this.points = points; this.ramp = ramp; this.opacity = 0.62; },
+  onAdd(map) {
+    this._map = map;
+    if (!map.getPane('interp')) { map.createPane('interp').style.zIndex = 330; map.getPane('interp').style.pointerEvents = 'none'; }
+    this.canvas = L.DomUtil.create('canvas', 'interp-canvas', map.getPane('interp'));
+    this.canvas.style.opacity = this.opacity;
+    this._reset = this._reset.bind(this);
+    this._hide = () => { this.canvas.style.opacity = 0; };
+    map.on('movestart zoomstart', this._hide);
+    map.on('moveend zoomend resize', this._reset);
+    this._reset();
+  },
+  onRemove(map) {
+    map.off('movestart zoomstart', this._hide);
+    map.off('moveend zoomend resize', this._reset);
+    this.canvas.remove();
+  },
+  setOpacity(o) { this.opacity = Math.min(0.85, o * 0.75); if (this.canvas) this.canvas.style.opacity = this.opacity; },
+  _reset() {
+    const map = this._map, size = map.getSize(), cell = 6;
+    const cols = Math.ceil(size.x / cell), rows = Math.ceil(size.y / cell);
+    L.DomUtil.setPosition(this.canvas, map.containerPointToLayerPoint([0, 0]));
+    this.canvas.width = size.x; this.canvas.height = size.y;
+    const off = document.createElement('canvas');
+    off.width = cols; off.height = rows;
+    const octx = off.getContext('2d'), img = octx.createImageData(cols, rows);
+    const lon0 = map.containerPointToLatLng([0, 0]).lng, lon1 = map.containerPointToLatLng([size.x, 0]).lng;
+    for (let j = 0; j < rows; j++) {
+      const lat = map.containerPointToLatLng([0, (j + 0.5) * cell]).lat;
+      for (let i = 0; i < cols; i++) {
+        const lon = lon0 + (lon1 - lon0) * ((i + 0.5) * cell) / size.x;
+        let sw = 0, sv = 0, near = Infinity;
+        for (const p of this.points) {
+          const d2 = (p.lat - lat) ** 2 + (p.lon - lon) ** 2;
+          if (d2 < near) near = d2;
+          const w = 1 / Math.max(d2, 1e-5) ** 1.1;  // IDW, power ≈ 2.2
+          sw += w; sv += w * p.v;
+        }
+        const d = Math.sqrt(near);
+        const fade = d < 0.35 ? 1 : Math.max(0, 1 - (d - 0.35) / 0.65);  // fade out 0.35°→1°
+        const [r, g, b] = this.ramp(sv / sw);
+        const k = (j * cols + i) * 4;
+        img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = Math.round(255 * fade);
+      }
+    }
+    octx.putImageData(img, 0, 0);
+    const ctx = this.canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(off, 0, 0, size.x, size.y);
+    this.canvas.style.opacity = this.opacity;
+  },
+});
+
 function textOn(hex) {
   const n = parseInt(hex.slice(1), 16);
   const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
@@ -223,8 +306,13 @@ function renderAir() {
   const digits = param === 'aerosol_optical_depth' ? 2 : param === 'precipitation' ? 1 : 0;
   const short = (v) => (v === null || v === undefined) ? '–' : Number(v).toLocaleString('id-ID', {maximumFractionDigits: digits, minimumFractionDigits: digits});
   const fmtV = (v) => (v === null || v === undefined) ? '—' : `${Number(v).toLocaleString('id-ID', {maximumFractionDigits: 1})} ${sp.unit}`;
-  const radius = Number($('#airBuffer').value);
+  const spread = $('#airSpread').value;
+  const radius = Number(spread) || 0;
   const layers = [];
+  if (spread === 'idw') {
+    const stations = pts.filter((p) => val(p) !== null && val(p) !== undefined).map((p) => ({lat: p.lat, lon: p.lon, v: val(p)}));
+    if (stations.length) layers.push(new InterpLayer(stations, rampFor(param, lo, hi)));
+  }
   const pins = pts.map((p) => {
     const v = val(p);
     const color = colorFor(param, v, lo, hi);
@@ -234,9 +322,9 @@ function renderAir() {
     }
     // IQAir-style pin: the value itself, coloured by category.
     const m = L.marker([p.lat, p.lon], {pane: 'markerPane', riseOnHover: true, icon: L.divIcon({className: 'aq-icon',
-      html: `<div class="aq-pin" style="background:${color};color:${textOn(color)};border-top-color:${color}">${short(v)}</div>`,
-      iconSize: [40, 32], iconAnchor: [20, 32], popupAnchor: [0, -30]})});
-    m.bindTooltip(`<b>${esc(p.name)}</b><br>${esc(sp.label)}: ${esc(fmtV(v))}`, {direction: 'top', offset: [0, -30]});
+      html: `<div class="aq-pin" style="background:${color};color:${textOn(color)};--pin:${color}">${short(v)}</div>`,
+      iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -18]})});
+    m.bindTooltip(`<b>${esc(p.name)}</b><br>${esc(sp.label)}: ${esc(fmtV(v))}`, {direction: 'top', offset: [0, -18]});
     m.bindPopup(`<div class="pt"><h4>${esc(p.name)}</h4><div class="coord">${esc(p.provinsi)} · titik pusat wilayah · ${esc(AIR.time || '')} WIB</div><table>
       ${Object.entries(AIR_PARAMS).map(([k, s]) => `<tr><td>${esc(s.label)}</td><td>${esc((() => { const x = (s.src === 'air' ? p.air : p.wx)[k]; return x === null || x === undefined ? '—' : `${Number(x).toLocaleString('id-ID', {maximumFractionDigits: 1})} ${s.unit}`; })())}</td></tr>`).join('')}
       <tr><td>Arah angin (dari)</td><td>${p.wx.wind_direction_10m ?? '—'}°</td></tr></table></div>`);
@@ -247,8 +335,12 @@ function renderAir() {
   const legend = (sp.scale
     ? legendCats(`${sp.label} · ${AIR.time || ''}`, sp.scale.map(([max, color, name]) => ({color, label: `${name}${max < 1e8 ? ` (≤ ${max})` : ''}`})))
     : legendGradient(`${sp.label} (${sp.unit || 'indeks'}) · ${AIR.time || ''}`, SEQ.map((c) => c.slice(1)), fmtV(lo), fmtV(hi), '', ''))
-    + (radius ? `<div class="ends"><span>Lingkaran = radius ${radius / 1000} km dari titik pantau (ilustrasi jangkauan, bukan batas sebaran polutan)</span></div>` : '');
-  setLayer('air', L.layerGroup(layers), {label: `${sp.label} · kab/kota`, color: colorFor(param, hi, lo, hi), opacity: false, legend});
+    + (radius ? `<div class="ends"><span>Lingkaran = radius ${radius / 1000} km dari titik pantau (ilustrasi jangkauan, bukan batas sebaran polutan)</span></div>` : '')
+    + (spread === 'idw' ? '<div class="ends"><span>Gradasi = interpolasi IDW antartitik pantau (perkiraan, bukan pengukuran), memudar jauh dari titik.</span></div>' : '');
+  const group = L.layerGroup(layers);
+  group.setOpacity = (o) => layers.forEach((l) => l instanceof InterpLayer && l.setOpacity(o));
+  setLayer('air', group, {label: `${sp.label} · kab/kota`, color: colorFor(param, hi, lo, hi), legend});
+  $('#windBtn').classList.remove('hidden');
   const sorted = [...pts].sort((a, b) => (val(b) ?? -1e9) - (val(a) ?? -1e9));
   $('#airList').innerHTML = `<p class="fine">Pembaruan ${esc(AIR.time || '')} WIB · ${pts.length} kab/kota · urut dari tertinggi</p>
     <div class="kab-list">${sorted.map((p) => `<button type="button" class="kab-row" data-air="${esc(p.name)}">
@@ -260,6 +352,14 @@ function renderAir() {
     setTimeout(() => pins[i].openPopup(), 900);
   });
   if ($('#windToggle').checked) renderWind(); else removeLayer('wind');
+  syncWindBtn();
+}
+
+function syncWindBtn() { $('#windBtn').setAttribute('aria-pressed', String($('#windToggle').checked)); }
+function setWind(on) {
+  $('#windToggle').checked = on;
+  syncWindBtn();
+  if (on) { if (AIR) renderWind(); else loadAir(); } else removeLayer('wind');
 }
 
 /* ------------------------------------------------- animated wind particles */
@@ -398,8 +498,9 @@ function initLive() {
   $('#airParam').innerHTML = Object.entries(AIR_PARAMS).map(([k, v]) => `<option value="${k}">${esc(v.label)}${v.unit ? ` (${esc(v.unit)})` : ''}</option>`).join('');
   $('#airParam').onchange = renderAir;
   $('#airLoad').onclick = loadAir;
-  $('#windToggle').onchange = (e) => { if (e.target.checked) { if (AIR) renderWind(); else loadAir(); } else removeLayer('wind'); };
-  $('#airBuffer').onchange = renderAir;
+  $('#windToggle').onchange = (e) => setWind(e.target.checked);
+  $('#windBtn').onclick = () => setWind(!$('#windToggle').checked);
+  $('#airSpread').onchange = renderAir;
   $('#gibsLoad').onclick = loadGibsAtmos;
   $('#fireLoad').onclick = loadFire;
   $('#trueColorToggle').onchange = (e) => toggleTrueColor(e.target.checked);
