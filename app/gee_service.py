@@ -95,6 +95,73 @@ ENV_LAYERS = {
     },
 }
 
+WATER_LAYERS = {
+    'turbidity': {
+        'label': 'Kekeruhan / TSS', 'unit': 'mg/L (estimasi)',
+        'formula': 'TSS = 355,85·ρ / (1 − ρ/0,1728), ρ = reflektans merah B4 (Nechad dkk. 2010); hanya piksel air (MNDWI > 0)',
+        'meaning': 'Padatan tersuspensi (lumpur, sedimen). Tinggi = air keruh dari erosi hulu, muara, atau reklamasi. '
+                   'Belum dikalibrasi sampel lapangan: gunakan sebagai nilai relatif.',
+        'min': 0, 'max': 80,
+        'palette': ['08306b', '2171b5', '6baed6', 'c6dbef', 'f6e8c3', 'dfc27d', 'bf812d', '8c510a'],
+        'classes': [
+            {'max': 15, 'label': 'Rendah (< 15)', 'color': '#2171b5'},
+            {'max': 30, 'label': 'Sedang (15–30)', 'color': '#c6dbef'},
+            {'max': 60, 'label': 'Tinggi (30–60)', 'color': '#dfc27d'},
+            {'max': None, 'label': 'Sangat tinggi (> 60)', 'color': '#8c510a'},
+        ],
+        'source': 'COPERNICUS/S2_SR_HARMONIZED (10 m)', 'stat_scale': 100, 'stat_scale_aoi': 20, 'first_year': 2020,
+    },
+    'chlorophyll': {
+        'label': 'Klorofil-a (NDCI)', 'unit': 'NDCI',
+        'formula': '(Red-edge − Merah) / (Red-edge + Merah) · B5, B4 (Mishra & Mishra 2012)',
+        'meaning': 'Indikasi fitoplankton / alga. Tinggi = potensi eutrofikasi (limbah organik, pupuk).',
+        'min': -0.2, 'max': 0.3,
+        'palette': ['313695', '4575b4', '74add1', 'e0f3f8', 'fee090', 'a6d96a', '1a9850', '006837'],
+        'classes': [
+            {'max': 0.0, 'label': 'Rendah', 'color': '#4575b4'},
+            {'max': 0.1, 'label': 'Sedang', 'color': '#fee090'},
+            {'max': 0.2, 'label': 'Tinggi', 'color': '#a6d96a'},
+            {'max': None, 'label': 'Sangat tinggi (bloom)', 'color': '#006837'},
+        ],
+        'source': 'COPERNICUS/S2_SR_HARMONIZED (20 m red-edge)', 'stat_scale': 100, 'stat_scale_aoi': 20, 'first_year': 2020,
+    },
+    'sst': {
+        'label': 'Suhu permukaan air', 'unit': '°C',
+        'formula': 'Landsat 8/9 Collection 2 surface temperature (ST_B10), median periode, piksel air (MNDWI > 0)',
+        'meaning': 'Area air yang jauh lebih hangat dari sekitarnya dapat menandai buangan air panas '
+                   '(PLTU, industri) atau perairan dangkal/tertutup. Resolusi termal asli 100 m.',
+        'min': 26, 'max': 36,
+        'palette': ['313695', '4575b4', '74add1', 'ffffbf', 'fdae61', 'f46d43', 'a50026'],
+        'source': 'LANDSAT/LC08 + LC09 C02 T1_L2 (ST_B10)', 'stat_scale': 100, 'stat_scale_aoi': 30, 'first_year': 2020,
+    },
+    'oil': {
+        'label': 'Bercak gelap radar (indikasi minyak)', 'unit': '% akuisisi',
+        'formula': 'Sentinel-1 VV: piksel ≥ 6 dB lebih gelap dari laut sekitar (median 2 km) dan < −18 dB; nilai = % akuisisi yang gelap',
+        'meaning': 'Lapisan minyak meredam gelombang sehingga tampak gelap di radar. Bercak jarang/sesaat '
+                   'patut dicek; bercak sering biasanya angin lemah, perairan terlindung, atau look-alike.',
+        'min': 1, 'max': 40,
+        'palette': ['fff5eb', 'fdd0a2', 'fd8d3c', 'd94801', '7f2704', '000000'],
+        'classes': [
+            {'max': 0.001, 'label': 'Tidak ada bercak', 'color': '#e0f2fe'},
+            {'max': 34, 'label': 'Sesekali (≤ 1/3 citra) · cek kemungkinan tumpahan', 'color': '#fd8d3c'},
+            {'max': None, 'label': 'Berulang (> 1/3 citra) · umumnya perairan tenang/look-alike', 'color': '#7f2704'},
+        ],
+        'source': 'COPERNICUS/S1_GRD (IW, VV)', 'stat_scale': 400, 'stat_scale_aoi': 40, 'monthly_only': True, 'first_year': 2020,
+    },
+}
+
+# Kotak area fokus (lon/lat WGS84), dipakai untuk statistik & zoom.
+WATER_AOIS = {
+    'teluk-jakarta': {'label': 'Teluk Jakarta', 'bbox': [106.68, -6.11, 107.03, -5.90]},
+    'muara-citarum': {'label': 'Muara Citarum (Muara Gembong)', 'bbox': [107.00, -6.02, 107.18, -5.88]},
+    'teluk-banten': {'label': 'Teluk Banten', 'bbox': [106.05, -6.04, 106.30, -5.88]},
+    'pesisir-cilegon': {'label': 'Pesisir Cilegon–Merak (Selat Sunda)', 'bbox': [105.86, -6.12, 106.02, -5.88]},
+    'jatiluhur': {'label': 'Waduk Jatiluhur', 'bbox': [107.30, -6.62, 107.45, -6.48]},
+    'cirata': {'label': 'Waduk Cirata', 'bbox': [107.24, -6.80, 107.40, -6.66]},
+    'saguling': {'label': 'Waduk Saguling', 'bbox': [107.30, -6.96, 107.45, -6.83]},
+    'palabuhanratu': {'label': 'Teluk Palabuhanratu', 'bbox': [106.35, -7.08, 106.58, -6.95]},
+}
+
 WORLDCOVER = [
     (10, 'Tutupan pohon', '006400'), (20, 'Semak', 'ffbb22'), (30, 'Padang rumput', 'ffff4c'),
     (40, 'Lahan pertanian', 'f096ff'), (50, 'Terbangun', 'fa0000'), (60, 'Lahan terbuka', 'b4b4b4'),
@@ -480,6 +547,140 @@ class EarthEngineService:
                 'mean': s.get('v_mean'), 'p10': s.get('v_p10'), 'p90': s.get('v_p90'),
                 'classes': out_classes, 'sampling_scale_m': scale,
                 'unit': ENV_LAYERS[layer]['unit'], **meta}
+
+    # ---------------------------------------------------------- water quality
+    @staticmethod
+    def check_water(layer: str, aoi: str = 'all'):
+        if layer not in WATER_LAYERS:
+            raise ValueError('Layer air harus salah satu dari: ' + ', '.join(WATER_LAYERS))
+        if aoi != 'all' and aoi not in WATER_AOIS:
+            raise ValueError('Area fokus tidak dikenal.')
+        return layer
+
+    def water_geom(self, area: str, aoi: str = 'all'):
+        """Province land + coastal sea (±12 km), or a preset focus box."""
+        if aoi != 'all':
+            return ee.Geometry.Rectangle(WATER_AOIS[aoi]['bbox'])
+        key = ('water_geom', area)
+        if key not in self._regions:
+            self._regions[key] = self.region(area).simplify(500).buffer(12000, 200)
+        return self._regions[key]
+
+    def land_mask(self):
+        """1 on land (province polygons of the whole study area), used to keep sea only."""
+        return ee.Image(0).byte().paint(ee.FeatureCollection([ee.Feature(self.region('all'))]), 1)
+
+    def water_image(self, layer: str, year: int, month: int, area: str, aoi: str = 'all', for_stats: bool = False):
+        self.require_ready()
+        if layer == 'oil' and not month:
+            raise ValueError('Deteksi bercak minyak hanya per bulan. Pilih satu bulan.')
+        start, end = self.period(year, month, FIRST_YEAR)
+        geom = self.water_geom(area, aoi)
+        s, e = start.isoformat(), end.isoformat()
+        if layer in ('turbidity', 'chlorophyll'):
+            def prep(img):
+                scl = img.select('SCL')
+                good = scl.eq(4).Or(scl.eq(5)).Or(scl.eq(6))  # turbid water is often labelled 5 (soil)
+                return img.select(['B3', 'B4', 'B5', 'B11']).divide(10000).updateMask(good)
+            comp = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED').filterBounds(geom).filterDate(s, e)
+                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 85)).map(prep).median())
+            water = comp.normalizedDifference(['B3', 'B11']).gt(0)  # MNDWI > 0 = air
+            if layer == 'turbidity':
+                red = comp.select('B4')                                # Nechad et al. (2010), 665 nm
+                # Formula is only valid well below the saturation reflectance (0.1728);
+                # brighter pixels are glint/foam/mixed shoreline, so they are dropped.
+                red = red.updateMask(red.gt(0).And(red.lt(0.12)))
+                img = red.multiply(355.85).divide(ee.Image(1).subtract(red.divide(0.1728)))
+            else:
+                img = comp.normalizedDifference(['B5', 'B4'])        # NDCI
+            img = img.updateMask(water)
+        elif layer == 'sst':
+            def prep_l(img):
+                qa = img.select('QA_PIXEL')
+                clear = qa.bitwiseAnd(1 << 3).eq(0).And(qa.bitwiseAnd(1 << 4).eq(0))  # no cloud / shadow
+                st = img.select('ST_B10').multiply(0.00341802).add(149.0).subtract(273.15)
+                sr = img.select(['SR_B3', 'SR_B6']).multiply(0.0000275).add(-0.2)
+                water = sr.normalizedDifference(['SR_B3', 'SR_B6']).gt(0)
+                return st.updateMask(clear.And(water)).rename('v')
+            coll = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2').merge(ee.ImageCollection('LANDSAT/LC09/C02/T1_L2'))
+            img = coll.filterBounds(geom).filterDate(s, e).map(prep_l).median()
+            img = img.updateMask(img.gt(15).And(img.lt(45)))  # drop fill/edge values outside physical range
+        elif layer == 'oil':
+            scenes = (ee.ImageCollection('COPERNICUS/S1_GRD').filterBounds(geom).filterDate(s, e)
+                      .filter(ee.Filter.eq('instrumentMode', 'IW'))
+                      .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+                      .select('VV'))
+            # Adaptive dark-spot test per acquisition: speckle-smoothed VV must be >= 6 dB darker
+            # than the surrounding sea (2 km median) and below -18 dB. Calm-sea areas that are dark
+            # everywhere are therefore not flagged; local slicks (oil, but also look-alikes) are.
+            def dark_spot(i):
+                proj = i.projection()
+                smooth = i.reduceResolution(ee.Reducer.mean(), maxPixels=64).reproject(proj.atScale(40))
+                # Background at 200 m, then a 2 km neighbourhood mean (cheap at that scale).
+                background = (i.reduceResolution(ee.Reducer.mean(), maxPixels=1024).reproject(proj.atScale(200))
+                              .focal_mean(2000, 'square', 'meters'))
+                return smooth.lt(background.subtract(6)).And(smooth.lt(-18)).rename('dark')
+            dark = scenes.map(dark_spot)
+            img = dark.mean().multiply(100).updateMask(self.land_mask().eq(0))
+            if not for_stats:
+                img = img.updateMask(img.gt(0))
+        else:
+            raise ValueError('Layer air tidak dikenal.')
+        meta = {'start': s, 'end_inclusive': (end - timedelta(days=1)).isoformat(),
+                'partial_year': month == 0 and end < date(year + 1, 1, 1)}
+        if layer == 'oil' and for_stats:
+            meta['scenes'] = scenes.size()
+        return img.rename('v').clip(geom), meta
+
+    def water_map_layer(self, layer: str, year: int, month: int = 0, area: str = 'all'):
+        self.check_water(layer)
+        if layer == 'oil' and not month:
+            raise ValueError('Deteksi bercak minyak hanya per bulan. Pilih satu bulan.')
+        area = self.check_area(area)
+        self.period(year, month, FIRST_YEAR)
+        self.require_ready()
+
+        def build():
+            img, meta = self.water_image(layer, year, month, area)
+            spec = WATER_LAYERS[layer]
+            mapid = img.getMapId({'min': spec['min'], 'max': spec['max'], 'palette': spec['palette']})
+            return {'layer': layer, 'year': year, 'month': month, 'area': area,
+                    'tiles': mapid['tile_fetcher'].url_format, 'source': spec['source'], **meta}
+        return self._tiles(('water', layer, year, month, area), build)
+
+    def water_statistics(self, layer: str, year: int, month: int = 0, area: str = 'all', aoi: str = 'all'):
+        self.check_water(layer, aoi)
+        if layer == 'oil' and aoi == 'all':
+            raise ValueError('Statistik bercak minyak terlalu berat untuk seluruh pesisir. Pilih satu area fokus.')
+        area = self.check_area(area)
+        self.require_ready()
+        spec = WATER_LAYERS[layer]
+        img, meta = self.water_image(layer, year, month, area, aoi, for_stats=True)
+        geom = self.water_geom(area, aoi)
+        scale = spec['stat_scale'] if aoi == 'all' else spec['stat_scale_aoi']
+        reducer = ee.Reducer.mean().combine(ee.Reducer.percentile([10, 90]), sharedInputs=True) \
+            .combine(ee.Reducer.count(), sharedInputs=True)
+        parts = {'stats': img.reduceRegion(reducer, geom, scale, bestEffort=True, maxPixels=2e8, tileScale=4)}
+        if spec.get('classes'):
+            parts['hist'] = self.classify(img, spec['classes']).reduceRegion(
+                ee.Reducer.frequencyHistogram(), geom, scale, bestEffort=True, maxPixels=2e8, tileScale=4).get('class')
+        if 'scenes' in meta:
+            parts['scenes'] = meta.pop('scenes')
+        data = ee.Dictionary(parts).getInfo()
+        if 'scenes' in data:
+            meta['scenes'] = data['scenes']
+        st = data.get('stats') or {}
+        out = {'layer': layer, 'year': year, 'month': month, 'area': area, 'aoi': aoi,
+               'mean': st.get('v_mean'), 'p10': st.get('v_p10'), 'p90': st.get('v_p90'),
+               'valid_samples': st.get('v_count'), 'sampling_scale_m': scale, 'unit': spec['unit'], **meta}
+        if spec.get('classes'):
+            hist = {int(float(k)): v for k, v in (data.get('hist') or {}).items()}
+            total = sum(hist.values()) or 0
+            out['classes'] = [{'label': c['label'], 'color': c['color'],
+                               'share': hist.get(i, 0) / total if total else None,
+                               'area_km2': hist.get(i, 0) * (scale / 1000) ** 2}
+                              for i, c in enumerate(spec['classes'], start=1)]
+        return out
 
     # ------------------------------------------------------------ point query
     def point(self, lat: float, lon: float, year: int, month: int = 0):

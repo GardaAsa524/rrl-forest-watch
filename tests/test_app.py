@@ -85,3 +85,24 @@ def test_jakarta_area_supported():
 def test_index_specs_complete():
     for spec in INDICES.values():
         assert spec['min'] < spec['max'] and len(spec['palette']) >= 5
+
+
+def test_water_layers_validated():
+    data = client.get('/api/status').json()
+    assert {'turbidity', 'chlorophyll', 'sst', 'oil'} == set(data['water_layers'])
+    assert 'teluk-jakarta' in data['water_aois']
+    assert client.get('/api/water/map?layer=merkuri&year=2024').status_code == 422
+    assert client.get('/api/water/statistics?layer=turbidity&year=2024&aoi=antah').status_code == 422
+    # Oil spills are events: annual composites and whole-coast statistics are refused.
+    assert client.get('/api/water/map?layer=oil&year=2024&month=0').status_code == 422
+    assert client.get('/api/water/statistics?layer=oil&year=2024&month=5&aoi=all').status_code == 422
+
+
+def test_static_build_files_present():
+    from pathlib import Path
+    docs = Path(__file__).resolve().parent.parent / 'docs'
+    if not docs.exists():
+        pytest.skip('docs/ belum dibangun')
+    html = (docs / 'index.html').read_text(encoding='utf-8')
+    assert 'window.EW_STATIC=true' in html and '"/static/' not in html
+    assert (docs / '.nojekyll').exists() and (docs / 'api' / 'layers' / 'kawasan.json').exists()

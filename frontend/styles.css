@@ -299,3 +299,8 @@ details.method code{background:var(--surface-2);padding:1px 5px;border-radius:5p
 :root[data-theme=dark] .idx.on{box-shadow:0 0 0 3px rgba(63,156,122,.25)}
 :root[data-theme=dark] .org img{content:url("/static/img/logo-full.png")}
 :root[data-theme=dark] .pt .tag{filter:saturate(.8) brightness(.9)}
+
+/* Kualitas air */
+.water-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.rail{overflow-y:auto}
+@media (max-width:760px){.rail-btn span:last-child{white-space:nowrap;font-size:.58rem}}

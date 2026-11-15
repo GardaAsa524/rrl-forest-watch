@@ -11,9 +11,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/static/styles.css?v=7">
+  <link rel="stylesheet" href="/static/styles.css?v=8">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="/static/app.js?v=7"></script>
+  <script defer src="/static/app.js?v=8"></script>
 </head>
 <body>
 <div class="shell" id="shell">
@@ -46,6 +46,7 @@
     <button type="button" class="rail-btn" data-module="bio"><span class="ri">❦</span><span>Biodiversitas</span></button>
     <button type="button" class="rail-btn" data-module="index"><span class="ri">◐</span><span>Indeks Citra</span></button>
     <button type="button" class="rail-btn" data-module="env"><span class="ri">≋</span><span>Lingkungan</span></button>
+    <button type="button" class="rail-btn" data-module="water"><span class="ri">💧</span><span>Kualitas Air</span></button>
   </nav>
 
   <!-- ===== Map ===== -->
@@ -175,6 +176,25 @@
       <button type="button" class="btn primary" id="envLoad">Tampilkan di peta & hitung</button>
       <div id="envStats"></div>
       <details class="method"><summary>Metode</summary><div id="envMethod"></div></details>
+    </section>
+    <!-- Kualitas air -->
+    <section class="module" data-module="water">
+      <header class="mod-head"><span class="kicker">05 · Pencemaran air</span><h2>Kualitas air laut & badan air</h2>
+        <p>Indikasi dari citra satelit (Earth Engine). Bukan pengganti uji laboratorium.</p></header>
+      <div class="water-cards" id="waterCards"></div>
+      <div class="form-grid">
+        <label>Tahun<select id="waterYear"></select></label>
+        <label>Periode<select id="waterMonth"></select></label>
+        <label class="span2">Area fokus statistik<select id="waterAoi"></select></label>
+      </div>
+      <button type="button" class="btn primary" id="waterLoad">Tampilkan di peta & hitung</button>
+      <div id="waterStats"></div>
+      <div class="card" id="waterTrendCard">
+        <div class="row-between"><h4 id="waterTrendTitle">Tren tahunan</h4><button type="button" class="btn ghost small" id="waterTrendBtn">Hitung tren</button></div>
+        <div id="waterTrend" class="chart"><p class="muted">Rerata tahunan untuk area fokus terpilih.</p></div>
+      </div>
+      <details class="method"><summary>Metode & keterbatasan</summary><div id="waterMethod"></div></details>
+      <div class="callout">ⓘ Satelit tidak dapat mendeteksi logam berat, bakteri (E. coli), atau sebagian besar limbah kimia terlarut. Sungai &lt; ±30 m sulit terbaca. Nilai TSS & klorofil belum dikalibrasi sampel lapangan: gunakan untuk perbandingan relatif antarwaktu/antartempat.</div>
     </section>
   </aside>
 

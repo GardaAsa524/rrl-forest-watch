@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from . import biodiversity, vectors
 from .config import ROOT, PROJECT, SCHEDULER_ENABLED, CACHE_DIR, AREAS
 from .gee_service import (EarthEngineUnavailable, service, INDICES, ENV_LAYERS, WORLDCOVER,
-                          FIRST_YEAR, ENV_FIRST_YEAR)
+                          WATER_LAYERS, WATER_AOIS, FIRST_YEAR, ENV_FIRST_YEAR)
 from .store import get_stat, put_stat, stat_key
 
 log = logging.getLogger('rrl')
@@ -75,6 +75,8 @@ def status():
         'areas': {k: v['label'] for k, v in AREAS.items()},
         'indices': INDICES,
         'env_layers': ENV_LAYERS,
+        'water_layers': WATER_LAYERS,
+        'water_aois': WATER_AOIS,
         'worldcover': [{'code': c, 'label': n, 'color': '#' + p} for c, n, p in WORLDCOVER],
         'scheduler_enabled': bool(_scheduler and _scheduler.running),
         'scheduler_schedule': 'Tanggal 10 setiap bulan, 04.00 WIB',
@@ -144,6 +146,32 @@ def env_statistics(layer: str, year: int = Query(ge=2000, le=2100), mask: str = 
         if not force and (cached := get_stat(key)):
             return {**cached, 'from_cache': True}
         data = service.env_statistics(layer, year, mask, area)
+        put_stat(key, data)
+        return {**data, 'from_cache': False}
+    except Exception as exc:
+        _handle_error(exc)
+
+
+# ---------------------------------------------------------- water quality
+@app.get('/api/water/map')
+def water_map(layer: str, year: int = Query(ge=2000, le=2100), month: int = Query(0, ge=0, le=12),
+              area: str = 'all'):
+    try:
+        return service.water_map_layer(layer, year, month, area)
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@app.get('/api/water/statistics')
+def water_statistics(layer: str, year: int = Query(ge=2000, le=2100), month: int = Query(0, ge=0, le=12),
+                     area: str = 'all', aoi: str = 'all', force: bool = False):
+    try:
+        service.check_water(layer, aoi)
+        area = service.check_area(area)
+        key = stat_key('water', layer=layer, year=year, month=month, area=area, aoi=aoi)
+        if not force and (cached := get_stat(key)):
+            return {**cached, 'from_cache': True}
+        data = service.water_statistics(layer, year, month, area, aoi)
         put_stat(key, data)
         return {**data, 'from_cache': False}
     except Exception as exc:

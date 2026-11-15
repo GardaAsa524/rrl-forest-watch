@@ -2,14 +2,26 @@
 
 Dikembangkan oleh **Ruang Riung Lingkungan**. Mendukung mode terang/gelap (tombol ☾/☀ di kanan atas).
 
+## Dua cara membuka
+
+| | Versi server (lengkap) | Versi GitHub Pages (statis) |
+|---|---|---|
+| Cara buka | `JALANKAN_WEBGIS.bat` → http://127.0.0.1:8000 | https://gardaasa524.github.io/rrl-forest-watch/ |
+| Kawasan hutan, kabupaten, DAS, sungai, satwa (GBIF) | ✅ | ✅ (data dibekukan saat build) |
+| Indeks citra, erosivitas, degradasi, kualitas air, profil titik | ✅ | ❌ butuh Earth Engine di server |
+
+Membangun ulang versi Pages: `.venv\Scripts\python.exe scripts\build_static.py`, lalu commit folder `docs/`.
+Di GitHub: **Settings → Pages → Branch `main`, folder `/docs` → Save**.
+
 ## Versi 0.2: modul baru
 
 | Modul | Isi | Sumber data |
 |---|---|---|
-| **Jenis Hutan** | Luas kawasan hutan per kabupaten/kota (41 kab/kota). Fungsi kawasan: Hutan Produksi (tetap/terbatas/konversi), Hutan Lindung, Hutan Konservasi; luas per kelas. Tutupan lahan aktual WorldCover 2021 | File GeoJSON resmi yang Anda unggah (KLHK/SIGAP, BIG) + Earth Engine |
-| **Biodiversitas A: Jenis tanaman** | Peta tegakan (pinus, jati, mahoni, damar, rasamala, sengon, mangrove, dll.) + catatan sebaran jenis pohon | GeoJSON tegakan (mis. Perhutani) + GBIF |
+| **Jenis Hutan** | Luas kawasan hutan per kabupaten/kota (41 kab/kota). Fungsi kawasan: Hutan Produksi (tetap/terbatas/konversi), Hutan Lindung, Hutan Konservasi; luas per kelas. Tutupan lahan aktual WorldCover 2021 | KLHK Kawasan Hutan 2023, BIG batas kab/kota + Earth Engine |
+| **Biodiversitas A: Jenis tanaman** | Peta tegakan (pinus, jati, mahoni, damar, rasamala, sengon, mangrove, dll.) + catatan sebaran jenis pohon | GBIF (peta tegakan Perhutani belum tersedia) |
 | **Biodiversitas B: Habitat satwa** | Badak Jawa (+ batas TN Ujung Kulon), Macan Tutul Jawa, Owa Jawa, Surili, Elang Jawa: sebaran catatan per sel ±11 km, status IUCN, konteks habitat hutan | GBIF (iNaturalist, museum, survei) |
 | **Indeks Citra** | NDVI, MSARVI, NDWI, NDBI 10 m, tahunan/bulanan, perbandingan dua tahun (geser), tren tahunan | Sentinel-2 SR via Google Earth Engine |
+| **Kualitas Air** | Kekeruhan/TSS (Nechad), klorofil-a (NDCI), suhu permukaan air (Landsat), bercak gelap radar (indikasi minyak) + 8 area fokus (Teluk Jakarta, Muara Citarum, waduk, dll.) | Sentinel-2, Landsat 8/9, Sentinel-1 via Earth Engine |
 | **Lingkungan** | Erosivitas hujan (faktor R, Lenvain), curah hujan, indikasi degradasi lahan (tren NDVI 2001–sekarang) dengan sebaran kelas & luas | CHIRPS, MODIS MOD13Q1 via Earth Engine |
 
 Klik di mana saja pada peta untuk melihat **profil lokasi** (keempat indeks, R, curah hujan, tren NDVI, ketinggian, kemiringan, tutupan lahan).
