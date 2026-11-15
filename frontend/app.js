@@ -39,15 +39,34 @@ function resolveApi(path) {
   if (m) return `api/layers/${m[1]}.json`;
   m = p.match(/^\/api\/biodiversity\/([a-z]+)$/);
   if (m) return `api/biodiversity/${m[1]}_${url.searchParams.get('area') || 'all'}.json`;
-  if (window.EW_API_BASE) return window.EW_API_BASE + path;
+  if (window.EW_API_BASE) return window.EW_API_BASE + path;  // live server configured
+  // Earth Engine snapshot files produced by scripts/ee_snapshot.py.
+  const q = (k, d = '') => url.searchParams.get(k) ?? d;
+  const mask = q('mask', 'region') === 'province' ? 'region' : q('mask', 'region');
+  if (p === '/api/map') return `api/maps/index_${q('index', 'ndvi')}_${q('year')}_${q('month', '0')}_${q('mask', 'trees') === 'province' ? 'region' : q('mask', 'trees')}.json`;
+  if (p === '/api/env/map') return `api/maps/env_${q('layer')}_${q('year')}_${mask}.json`;
+  if (p === '/api/water/map') return `api/maps/water_${q('layer')}_${q('year')}_${q('month', '0')}.json`;
+  if (p === '/api/statistics') return `api/stats/index_${q('index', 'ndvi')}_${q('year')}_${q('month', '0')}_${q('mask', 'trees') === 'province' ? 'region' : q('mask', 'trees')}_${q('area', 'all')}.json`;
+  if (p === '/api/env/statistics') return `api/stats/env_${q('layer')}_${q('year')}_${mask}_${q('area', 'all')}.json`;
+  if (p === '/api/water/statistics') return `api/stats/water_${q('layer')}_${q('year')}_${q('month', '0')}_${q('area', 'all')}_${q('aoi', 'all')}.json`;
   throw new Error('Fitur ini membutuhkan server EnviroWatch (Earth Engine); versi GitHub Pages hanya statis.');
+}
+
+function snapshotHint() {
+  const sn = S.status?.snapshot;
+  if (!sn) return 'Versi GitHub Pages ini belum memiliki snapshot Earth Engine.';
+  return `Snapshot GitHub Pages hanya mencakup: indeks citra ${sn.index_map_years.join(' & ')} (statistik ${sn.index_years[0]}–${sn.index_years.at(-1)}), ` +
+    `lingkungan & kualitas air ${sn.env_year}, periode tahunan, statistik untuk seluruh wilayah. Pilihan lain tersedia di versi server.`;
 }
 
 async function api(path, opts = {}) {
   const res = await fetch(resolveApi(path), opts);
   let body = {};
   try { body = await res.json(); } catch { /* empty */ }
-  if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+  if (!res.ok) {
+    if (window.EW_STATIC && res.status === 404 && path.startsWith('/api/') && !window.EW_API_BASE) throw new Error(snapshotHint());
+    throw new Error(body.detail || `HTTP ${res.status}`);
+  }
   return body;
 }
 
@@ -68,6 +87,7 @@ function busy(on, text = 'Mengolah di Earth Engine…') {
 
 function needEE() {
   if (S.ready) return false;
+  if (S.status?.static && (S.status.snapshot || window.EW_API_BASE)) return false;  // snapshot / remote server
   if (S.status?.static) {
     toast('Butuh server EnviroWatch', ' Versi GitHub Pages ini statis. Indeks citra, erosivitas, degradasi, dan kualitas air dihitung Earth Engine di server, jadi hanya tersedia di versi server.', 'err');
   } else {
@@ -507,7 +527,16 @@ async function eeTileLayer(id, path, {pane = 'rasterA', label, color, legend}) {
   busy(true);
   try {
     const d = await api(path);
-    const layer = L.tileLayer(d.tiles, {pane, maxZoom: 19, attribution: 'Google Earth Engine'});
+    // Static build: pre-rendered overlay image (snapshot). Server: live Earth Engine tiles.
+    let layer;
+    if (d.images || d.image) {
+      const parts = (d.images || [{image: d.image, bounds: d.bounds}]).map((t) =>
+        L.imageOverlay(t.image, t.bounds, {pane, attribution: 'Google Earth Engine (snapshot)', interactive: false}));
+      layer = L.layerGroup(parts);
+      layer.setOpacity = (o) => parts.forEach((p) => p.setOpacity(o));  // used by the opacity slider
+    } else {
+      layer = L.tileLayer(d.tiles, {pane, maxZoom: 19, attribution: 'Google Earth Engine'});
+    }
     let errors = 0;
     layer.on('tileerror', () => { if (++errors === 3) toast('Sebagian tile gagal dimuat', ' Coba muat ulang lapisan.'); });
     setLayer(id, layer, {label, color, legend});
@@ -654,6 +683,7 @@ function renderEnvInfo() {
   const max = S.env === 'degradation' ? S.currentYear - 1 : S.currentYear;
   const cur = Math.min(Number($('#envYear').value) || max, max);
   fillYears($('#envYear'), S.env === 'degradation' ? 2006 : (S.status?.env_first_year || 2001), max, S.env === 'degradation' ? max : Math.min(cur, S.currentYear - 1));
+  if (SNAP()) setOptions($('#envYear'), [SNAP().env_year]);
 }
 
 async function loadEnv() {
@@ -691,11 +721,27 @@ async function loadEnv() {
   finally { btn.disabled = false; }
 }
 
+/** Static snapshot mode: only offer periods that were pre-rendered. */
+const SNAP = () => (S.status?.static && !window.EW_API_BASE ? S.status.snapshot : null);
+function setOptions(select, values, labelFn = String) {
+  select.innerHTML = values.map((v) => `<option value="${v}">${esc(labelFn(v))}</option>`).join('');
+}
+function applySnapshotLimits() {
+  const sn = SNAP();
+  if (!sn) return;
+  setOptions($('#idxYear'), [...sn.index_map_years].reverse());
+  setOptions($('#idxYearB'), sn.index_map_years);
+  setOptions($('#idxMonth'), [0], () => 'Tahunan · komposit 12 bulan');
+  setOptions($('#waterYear'), [sn.water_year]);
+  setOptions($('#waterMonth'), [0], () => 'Tahunan · komposit 12 bulan');
+}
+
 /* ------------------------------------------------------------ WATER */
 S.water = 'turbidity';
 function renderWaterCards() {
   const W = S.status?.water_layers || {};
-  $('#waterCards').innerHTML = Object.entries(W).map(([k, v]) => `<button type="button" class="idx ${k === S.water ? 'on' : ''}" data-water="${k}">
+  const allowed = SNAP()?.water_layers;
+  $('#waterCards').innerHTML = Object.entries(W).filter(([k]) => !allowed || allowed.includes(k)).map(([k, v]) => `<button type="button" class="idx ${k === S.water ? 'on' : ''}" data-water="${k}">
     <b>${esc(v.label)}</b><div class="ramp" style="background:${gradient(v.palette)}"></div><small>${esc(v.meaning.split('. ')[0])}.</small></button>`).join('');
   $$('[data-water]').forEach((b) => b.onclick = () => {
     S.water = b.dataset.water;
@@ -716,10 +762,11 @@ function renderWaterInfo() {
   const oil = Boolean(v.monthly_only);
   const months = MONTHS.map((m, i) => `<option value="${i}">${i ? m : 'Tahunan · komposit 12 bulan'}</option>`);
   const cur = $('#waterMonth').value;
-  $('#waterMonth').innerHTML = (oil ? months.slice(1) : months).join('');
+  if (SNAP()) { $('#waterTrendCard').classList.add('hidden'); }
+  else $('#waterMonth').innerHTML = (oil ? months.slice(1) : months).join('');
   const last = new Date().getMonth();  // last complete month index (1..12) of current year = getMonth()
   $('#waterMonth').value = oil ? String(cur && cur !== '0' ? cur : Math.max(1, last)) : (cur || '0');
-  $('#waterTrendCard').classList.toggle('hidden', oil);
+  $('#waterTrendCard').classList.toggle('hidden', oil || Boolean(SNAP()));
   $('#waterTrendTitle').textContent = `Tren tahunan ${v.label}`;
   $('#waterMethod').innerHTML = `<p><b>${esc(v.label)}</b> (${esc(v.unit)})<br>Rumus: <code>${esc(v.formula)}</code></p><p>${esc(v.meaning)}</p><p>Sumber: ${esc(v.source)}.${oil ? ' Hanya per bulan; statistik hanya untuk area fokus (perhitungan radar berat).' : ''}</p>`;
 }
@@ -803,8 +850,11 @@ async function onMapClick(e) {
   if (S.skipClick) { S.skipClick = false; return; }
   const {lat, lng} = e.latlng;
   const head = `<div class="pt"><h4>Profil lokasi</h4><div class="coord">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>`;
-  if (!S.ready) {
-    L.popup().setLatLng(e.latlng).setContent(`${head}<p class="muted">Hubungkan Earth Engine untuk membaca nilai indeks, erosivitas, dan tren pada titik ini.</p></div>`).openOn(S.map);
+  if (!S.ready && !(S.status?.static && window.EW_API_BASE)) {
+    const msg = S.status?.static
+      ? 'Profil titik dihitung langsung oleh Earth Engine, jadi hanya tersedia di versi server EnviroWatch.'
+      : 'Hubungkan Earth Engine untuk membaca nilai indeks, erosivitas, dan tren pada titik ini.';
+    L.popup().setLatLng(e.latlng).setContent(`${head}<p class="muted">${msg}</p></div>`).openOn(S.map);
     return;
   }
   const year = S.module === 'index' ? Number($('#idxYear').value) : S.currentYear - 1;
@@ -899,8 +949,8 @@ async function init() {
     toast('Backend tidak terhubung', ' ' + err.message, 'err');
   }
   const badge = $('#eeBadge');
-  badge.className = `pill ${S.ready ? 'ok' : 'off'}`;
-  $('span', badge).textContent = S.ready ? 'Earth Engine terhubung' : S.status?.static ? 'Versi statis · tanpa Earth Engine' : 'Earth Engine belum terhubung';
+  badge.className = `pill ${S.ready || S.status?.snapshot ? 'ok' : 'off'}`;
+  $('span', badge).textContent = S.ready ? 'Earth Engine terhubung' : S.status?.static ? (S.status.snapshot ? 'Snapshot Earth Engine · ' + S.status.snapshot.generated.slice(0, 10) : 'Versi statis · tanpa Earth Engine') : 'Earth Engine belum terhubung';
   badge.title = S.ready ? 'Google Earth Engine aktif' : (S.status?.error || '');
   const first = S.status?.first_year || 2020;
   $('#kpiYears').textContent = `${first}—${S.currentYear}`;
@@ -909,6 +959,8 @@ async function init() {
   $('#idxMonth').innerHTML = MONTHS.map((m, i) => `<option value="${i}">${i ? m : 'Tahunan · komposit 12 bulan'}</option>`).join('');
   if (S.status) { renderIndexCards(); renderIndexMethod(); renderEnvInfo(); renderWaterCards(); renderWaterInfo(); $('#trendTitle').textContent = 'Tren tahunan NDVI'; }
   fillYears($('#waterYear'), first, S.currentYear, S.currentYear - 1);
+  applySnapshotLimits();
+  if (SNAP()) renderWaterInfo();
   renderSources();
   loadBoundary();
   loadFaunaKpi();

@@ -12,3 +12,6 @@ __pycache__/
 cache/*.json
 cache/*.tmp
 data/*.tmp
+
+# Situs statis dibangun oleh GitHub Actions (scripts/build_static.py)
+docs/

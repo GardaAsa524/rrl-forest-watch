@@ -1,0 +1,61 @@
+# Membangun EnviroWatch versi statis (+ snapshot Google Earth Engine) dan menerbitkannya ke GitHub Pages.
+#
+# Persiapan satu kali (lihat README, bagian "Deploy ke GitHub Pages"):
+#   1. Settings → Pages → Source: "GitHub Actions".
+#   2. Settings → Secrets and variables → Actions → New repository secret:
+#        EE_SERVICE_ACCOUNT_KEY = isi file kunci JSON service account Earth Engine.
+#      Tanpa secret ini situs tetap terbit, hanya tanpa lapisan Earth Engine.
+name: Deploy EnviroWatch ke GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 21 9 * *'   # tanggal 10 pukul 04.00 WIB (21.00 UTC tanggal 9)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Pasang paket
+        run: pip install -r requirements.txt
+
+      - name: Bangun situs statis + snapshot Earth Engine
+        env:
+          EE_SERVICE_ACCOUNT_KEY: ${{ secrets.EE_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_CLOUD_PROJECT: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          ENABLE_SCHEDULER: 'false'
+          PYTHONIOENCODING: utf-8
+        run: python scripts/build_static.py --with-ee auto
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

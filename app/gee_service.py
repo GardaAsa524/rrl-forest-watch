@@ -7,6 +7,8 @@ Wilayah: Jawa Barat dan Banten (FAO GAUL). Lapisan yang dihitung:
 - Tutupan lahan ESA WorldCover 2021 (konteks, bukan kawasan hutan legal).
 """
 from __future__ import annotations
+import json
+import os
 from datetime import date, datetime, timedelta
 from threading import RLock
 from time import monotonic
@@ -190,14 +192,26 @@ class EarthEngineService:
 
     # ------------------------------------------------------------------ setup
     def _attempt_init(self):
-        if not PROJECT:
-            self.error = 'GOOGLE_CLOUD_PROJECT belum diisi pada .env.'
-            return
         if ee is None:
             self.error = 'Library earthengine-api belum terpasang. Jalankan pip install -r requirements.txt.'
             return
+        # Server / CI: service-account key (JSON text) from the environment, never from the repo.
+        key = os.getenv('EE_SERVICE_ACCOUNT_KEY', '').strip()
+        project = PROJECT
+        credentials = None
+        if key:
+            try:
+                info = json.loads(key)
+                credentials = ee.ServiceAccountCredentials(info['client_email'], key_data=key)
+                project = project or info.get('project_id', '')
+            except (ValueError, KeyError) as exc:
+                self.error = f'EE_SERVICE_ACCOUNT_KEY tidak valid: {exc}'
+                return
+        if not project:
+            self.error = 'GOOGLE_CLOUD_PROJECT belum diisi pada .env.'
+            return
         try:
-            ee.Initialize(project=PROJECT)
+            ee.Initialize(credentials, project=project) if credentials else ee.Initialize(project=project)
             ee.Number(1).getInfo()  # authenticated server check; no fake-ready state
             self.ready = True
             self.error = ''

@@ -4,14 +4,28 @@ Dikembangkan oleh **Ruang Riung Lingkungan**. Mendukung mode terang/gelap (tombo
 
 ## Dua cara membuka
 
-| | Versi server (lengkap) | Versi GitHub Pages (statis) |
+| | Versi server (lengkap, live) | Versi GitHub Pages |
 |---|---|---|
 | Cara buka | `JALANKAN_WEBGIS.bat` → http://127.0.0.1:8000 | https://gardaasa524.github.io/rrl-forest-watch/ |
-| Kawasan hutan, kabupaten, DAS, sungai, satwa (GBIF) | ✅ | ✅ (data dibekukan saat build) |
-| Indeks citra, erosivitas, degradasi, kualitas air, profil titik | ✅ | ❌ butuh Earth Engine di server |
+| Kawasan hutan, kabupaten, DAS, sungai, satwa (GBIF) | ✅ | ✅ |
+| Indeks citra, erosivitas, degradasi, kualitas air | ✅ semua tahun/bulan, resolusi penuh | ✅ **snapshot** Earth Engine: tahun 2020 & tahun lengkap terakhir, tahunan, ±200 m, statistik seluruh wilayah |
+| Profil titik (klik peta), bulan tertentu, bercak minyak | ✅ | ❌ |
+| Pembaruan | saat diminta | otomatis tiap tanggal 10 (GitHub Actions) + setiap push |
 
-Membangun ulang versi Pages: `.venv\Scripts\python.exe scripts\build_static.py`, lalu commit folder `docs/`.
-Di GitHub: **Settings → Pages → Branch `main`, folder `/docs` → Save**.
+## Deploy ke GitHub Pages (GitHub Actions + Earth Engine)
+
+Workflow `.github/workflows/pages.yml` menjalankan `scripts/build_static.py --with-ee auto` di server GitHub, lalu menerbitkan hasilnya ke Pages. Earth Engine login memakai **service account** (bukan akun pribadi). Persiapan satu kali:
+
+1. **Buat service account** di Google Cloud Console project `gardaasa524`:
+   *IAM & Admin → Service Accounts → Create service account* (mis. `envirowatch-ci`).
+   Beri peran **Earth Engine Resource Viewer** dan **Service Usage Consumer**.
+2. **Buat kunci JSON**: buka service account tersebut → *Keys → Add key → Create new key → JSON*. File `.json` terunduh. **Jangan commit file ini.**
+3. **Simpan di GitHub**: repo → *Settings → Secrets and variables → Actions → New repository secret*.
+   Name: `EE_SERVICE_ACCOUNT_KEY`, Secret: tempel **seluruh isi** file JSON.
+4. **Aktifkan Pages dari Actions**: *Settings → Pages → Build and deployment → Source: GitHub Actions*.
+5. Jalankan: tab *Actions → Deploy EnviroWatch ke GitHub Pages → Run workflow* (atau push ke `main`). ±15–30 menit.
+
+Tanpa secret, workflow tetap menerbitkan situs (tanpa lapisan Earth Engine). Untuk mencoba di komputer sendiri: `.venv\Scripts\python.exe scripts\build_static.py --with-ee yes` (memakai login Earth Engine lokal), hasil di `docs/`.
 
 ## Versi 0.2: modul baru
 
