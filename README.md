@@ -11,6 +11,9 @@ Dikembangkan oleh **Ruang Riung Lingkungan**. Mendukung mode terang/gelap (tombo
 | **Perairan** | DAS & sungai; kekeruhan/TSS, klorofil-a, suhu air, bercak minyak | KLHK, BIG, Copernicus, Earth Engine | ✅ peta TSS & klorofil (Copernicus) |
 | **Udara** | AQI, PM2.5, PM10, NO₂, SO₂, CO, O₃, aerosol, suhu, kelembapan, angin, hujan per kab/kota; citra atmosfer harian; curah hujan tahunan | Open-Meteo (CAMS), NASA GIBS (TROPOMI, MODIS, IMERG), CHIRPS | ✅ |
 
+| **Bencana** | Kejadian bencana pekan ini (banjir, longsor, cuaca ekstrem/puting beliung, kebakaran, gempa, kekeringan) per kab/kota; gempa terkini; peta bahaya InaRISK; potensi banjir/longsor, cuaca ekstrem & puting beliung 3 hari; hari tanpa hujan; titik panas | BNPB (Kejadian Bencana Mingguan, InaRISK), BMKG & USGS (gempa), Open-Meteo + GloFAS, NASA FIRMS | ✅ |
+| **Berita terkini** | Berita lingkungan & bencana dari Mongabay, Ekuatorial, Greenpeace dan ±100 media lokal/nasional (Google News); berita yang menyebut kab/kota atau tempat (Citarum, Ujung Kulon, Sarimukti, …) ditandai di peta | RSS | ✅ (Pages: diperbarui tiap 3 jam; Mongabay langsung) |
+
 Statistik dan grafik tren dihitung Google Earth Engine (langsung di versi server, snapshot bulanan di GitHub Pages).
 
 ## Sumber realtime & keamanannya
@@ -42,7 +45,7 @@ Jangan pernah menaruh *client secret* OAuth Copernicus atau kunci JSON Earth Eng
 | Kawasan hutan, kabupaten, DAS, sungai, satwa (GBIF) | ✅ | ✅ |
 | Indeks citra, erosivitas, degradasi, kualitas air | ✅ semua tahun/bulan, resolusi penuh | ✅ **snapshot** Earth Engine: tahun 2020 & tahun lengkap terakhir, tahunan, ±200 m, statistik seluruh wilayah |
 | Profil titik (klik peta), bulan tertentu, bercak minyak | ✅ | ❌ |
-| Pembaruan | saat diminta | otomatis tiap tanggal 10 (GitHub Actions) + setiap push |
+| Pembaruan | saat diminta | berita & GBIF tiap 3 jam; snapshot Earth Engine sebulan sekali (cache) + setiap push |
 
 ## Deploy ke GitHub Pages (GitHub Actions + Earth Engine)
 

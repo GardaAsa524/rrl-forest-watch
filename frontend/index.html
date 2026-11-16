@@ -11,10 +11,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="/static/styles.css?v=15">
+  <link rel="stylesheet" href="/static/styles.css?v=18">
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script defer src="/static/app.js?v=15"></script>
-  <script defer src="/static/live.js?v=15"></script>
+  <script defer src="/static/app.js?v=18"></script>
+  <script defer src="/static/live.js?v=18"></script>
+  <script defer src="/static/hazard.js?v=18"></script>
 </head>
 <body>
 <div class="shell" id="shell">
@@ -26,6 +27,9 @@
       <div class="brand-text"><strong>EnviroWatch</strong><span>Ruang Riung Lingkungan</span></div>
     </div>
 
+    <select id="areaSelect" class="area-select" aria-label="Wilayah pantauan">
+      <option value="all">Semua wilayah</option><option value="jabar">Jawa Barat</option><option value="banten">Banten</option><option value="jakarta">DKI Jakarta</option>
+    </select>
     <div class="seg area-seg" role="radiogroup" aria-label="Wilayah pantauan" id="areaSeg">
       <button type="button" data-area="all" class="on" role="radio" aria-checked="true">Semua</button>
       <button type="button" data-area="jabar" role="radio" aria-checked="false">Jawa Barat</button>
@@ -42,11 +46,13 @@
 
   <!-- ===== Navigation rail ===== -->
   <nav class="rail" aria-label="Modul">
-    <button type="button" class="rail-btn on" data-module="overview"><span class="ri">◎</span><span>Ringkasan</span></button>
-    <button type="button" class="rail-btn" data-module="bio"><span class="ri">🌳</span><span>Hutan &amp; Biodiversitas</span></button>
-    <button type="button" class="rail-btn" data-module="land"><span class="ri">⛰</span><span>Daratan</span></button>
-    <button type="button" class="rail-btn" data-module="water"><span class="ri">💧</span><span>Perairan</span></button>
-    <button type="button" class="rail-btn" data-module="air"><span class="ri">☁</span><span>Udara</span></button>
+    <button type="button" class="rail-btn on" data-module="overview" data-short="Ringkas"><span class="ri">◎</span><span>Ringkasan</span></button>
+    <button type="button" class="rail-btn" data-module="bio" data-short="Hutan"><span class="ri">🌳</span><span>Hutan &amp; Biodiversitas</span></button>
+    <button type="button" class="rail-btn" data-module="land" data-short="Darat"><span class="ri">⛰</span><span>Daratan</span></button>
+    <button type="button" class="rail-btn" data-module="water" data-short="Air"><span class="ri">💧</span><span>Perairan</span></button>
+    <button type="button" class="rail-btn" data-module="air" data-short="Udara"><span class="ri">☁</span><span>Udara</span></button>
+    <button type="button" class="rail-btn" data-module="hazard" data-short="Bencana"><span class="ri">⚠</span><span>Bencana</span></button>
+    <button type="button" class="rail-btn" data-module="news" data-short="Berita"><span class="ri">📰</span><span>Berita</span></button>
   </nav>
 
   <!-- ===== Map ===== -->
@@ -93,6 +99,8 @@
         <button type="button" class="quick-card" data-go="land"><span class="qi">⛰</span><b>Daratan</b><small>Indeks citra, kebakaran, degradasi, tutupan lahan</small></button>
         <button type="button" class="quick-card" data-go="water"><span class="qi">💧</span><b>Perairan</b><small>DAS, sungai, kualitas air</small></button>
         <button type="button" class="quick-card" data-go="air"><span class="qi">☁</span><b>Udara</b><small>Kualitas udara, polutan, cuaca, angin, hujan</small></button>
+        <button type="button" class="quick-card" data-go="hazard"><span class="qi">⚠</span><b>Bencana</b><small>Gempa, banjir, longsor, cuaca buruk, kekeringan, kebakaran</small></button>
+        <button type="button" class="quick-card" data-go="news"><span class="qi">📰</span><b>Berita terkini</b><small>Berita lingkungan &amp; bencana, lengkap dengan lokasinya</small></button>
       </div>
       <h3 class="sub">Status sumber data</h3>
       <ul class="sources" id="sourceList"></ul>
@@ -142,7 +150,6 @@
         <p>Indeks citra satelit, titik panas kebakaran, degradasi &amp; erosi, serta tutupan lahan.</p></header>
       <div class="seg wide" id="landSeg">
         <button type="button" data-land="index" class="on">Indeks citra</button>
-        <button type="button" data-land="fire">Kebakaran</button>
         <button type="button" data-land="defor">Deforestasi</button>
         <button type="button" data-land="env">Erosi &amp; degradasi</button>
         <button type="button" data-land="cover">Lahan &amp; tanah</button>
@@ -167,25 +174,6 @@
           <div id="trendChart" class="chart"><p class="muted">Rerata indeks per tahun dari Earth Engine (statistik regional 250 m).</p></div>
         </div>
         <details class="method"><summary>Rumus &amp; cara membaca</summary><div id="idxMethod"></div></details>
-      </div>
-
-      <div id="landFire" class="subpanel hidden">
-        <div class="card">
-          <h4>Titik panas (hotspot) kebakaran <span class="live-dot">REALTIME</span></h4>
-          <p class="muted">Deteksi anomali panas satelit VIIRS/MODIS dari NASA FIRMS (melalui NASA GIBS), diperbarui beberapa jam setelah satelit melintas.</p>
-          <div class="form-grid">
-            <label>Sensor<select id="fireSensor">
-              <option value="VIIRS_NOAA20_Thermal_Anomalies_375m_All">VIIRS NOAA-20 (375 m)</option>
-              <option value="VIIRS_NOAA21_Thermal_Anomalies_375m_All">VIIRS NOAA-21 (375 m)</option>
-              <option value="VIIRS_SNPP_Thermal_Anomalies_375m_All">VIIRS Suomi-NPP (375 m)</option>
-              <option value="MODIS_Combined_Thermal_Anomalies_All">MODIS Terra+Aqua (1 km)</option>
-            </select></label>
-            <label>Rentang<select id="fireDays"><option value="1">Hari terpilih</option><option value="3">3 hari</option><option value="7" selected>7 hari</option></select></label>
-            <label class="span2">Sampai tanggal<input type="date" id="fireDate"></label>
-          </div>
-          <button type="button" class="btn primary" id="fireLoad">Tampilkan titik panas</button>
-        </div>
-        <div class="callout">ⓘ Titik panas = piksel yang jauh lebih panas dari sekitarnya: bisa kebakaran hutan/lahan, pembakaran sampah/jerami, atau sumber panas industri (cerobong, flare). Perlu verifikasi lapangan; awan tebal dapat menyembunyikan api.</div>
       </div>
 
       <div id="landDefor" class="subpanel hidden">
@@ -297,6 +285,110 @@
           <button type="button" class="btn ghost small" id="rainLoad">Tampilkan</button></div>
       </div>
       <div class="callout">ⓘ Nilai polutan &amp; cuaca per kab/kota berasal dari model (Open-Meteo: CAMS &amp; model cuaca global) di titik pusat wilayah, bukan alat ukur resmi. Untuk status resmi, rujuk ISPU KLHK dan BMKG.</div>
+    </section>
+    <!-- Bencana -->
+    <section class="module" data-module="hazard">
+      <header class="mod-head"><span class="kicker">05 · Bencana</span><h2>Kejadian &amp; potensi bencana</h2>
+        <p>Kejadian terkini dari BNPB &amp; BMKG, peta bahaya InaRISK, dan potensi cuaca ekstrem dari prakiraan.</p></header>
+      <div class="seg wide wrap" id="hazSeg">
+        <button type="button" data-haz="events" class="on">Kejadian</button>
+        <button type="button" data-haz="quake">Gempa</button>
+        <button type="button" data-haz="flood">Banjir &amp; longsor</button>
+        <button type="button" data-haz="weather">Cuaca &amp; kekeringan</button>
+        <button type="button" data-haz="fire">Kebakaran</button>
+      </div>
+
+      <div id="hazEvents" class="subpanel">
+        <div class="card">
+          <h4>Kejadian bencana pekan ini <span class="live-dot">REALTIME</span></h4>
+          <p class="muted">Laporan kejadian BNPB/BPBD per kab/kota: banjir, longsor, cuaca ekstrem &amp; puting beliung, kebakaran, gempa, kekeringan.</p>
+          <button type="button" class="btn primary" id="eventLoad">Muat kejadian terkini</button>
+          <div id="eventList"></div>
+        </div>
+      </div>
+
+      <div id="hazQuake" class="subpanel hidden">
+        <div class="card">
+          <h4>Gempa bumi terkini <span class="live-dot">REALTIME</span></h4>
+          <label>Sumber<select id="quakeSource">
+            <option value="bmkg-felt">BMKG · gempa dirasakan (15 terbaru)</option>
+            <option value="bmkg-m5">BMKG · gempa M 5,0+ (15 terbaru)</option>
+            <option value="usgs">USGS · 30 hari, M 2,5+ sekitar Jawa bagian barat</option>
+          </select></label>
+          <button type="button" class="btn primary" id="quakeLoad">Tampilkan gempa</button>
+          <div id="quakeList"></div>
+        </div>
+        <div class="card slim row-between"><div><h4>Indeks bahaya gempa bumi</h4><p class="muted">InaRISK BNPB</p></div>
+          <label class="switch"><input type="checkbox" data-inarisk="INDEKS_BAHAYA_GEMPABUMI"><i></i></label></div>
+      </div>
+
+      <div id="hazFlood" class="subpanel hidden">
+        <div class="card">
+          <h4>Peta bahaya InaRISK</h4>
+          <div class="row-between"><span>Banjir</span><label class="switch"><input type="checkbox" data-inarisk="INDEKS_BAHAYA_BANJIR"><i></i></label></div>
+          <div class="row-between"><span>Banjir bandang</span><label class="switch"><input type="checkbox" data-inarisk="INDEKS_BAHAYA_BANJIRBANDANG"><i></i></label></div>
+          <div class="row-between"><span>Tanah longsor</span><label class="switch"><input type="checkbox" data-inarisk="INDEKS_BAHAYA_TANAHLONGSOR"><i></i></label></div>
+        </div>
+        <div class="card">
+          <h4>Potensi banjir &amp; longsor 3 hari ke depan <span class="live-dot">PRAKIRAAN</span></h4>
+          <p class="muted">Hujan prakiraan per kab/kota (Open-Meteo) dan debit sungai utama (GloFAS) dibanding rerata 30 hari terakhir.</p>
+          <button type="button" class="btn primary" id="floodLoad">Hitung potensi</button>
+          <div id="floodList"></div>
+        </div>
+      </div>
+
+      <div id="hazWeather" class="subpanel hidden">
+        <div class="card">
+          <h4>Potensi cuaca ekstrem &amp; puting beliung <span class="live-dot">PRAKIRAAN</span></h4>
+          <p class="muted">3 hari ke depan per kab/kota: hujan lebat, hembusan angin kencang, dan energi konvektif (CAPE) pemicu awan badai.</p>
+          <button type="button" class="btn primary" id="weatherLoad">Hitung potensi</button>
+          <div id="weatherList"></div>
+        </div>
+        <div class="card">
+          <h4>Hari tanpa hujan (kekeringan)</h4>
+          <p class="muted">Jumlah hari berturut-turut tanpa hujan berarti (&lt; 1 mm) hingga hari ini, mengikuti klasifikasi HTH BMKG.</p>
+          <button type="button" class="btn ghost" id="droughtLoad">Hitung hari tanpa hujan</button>
+          <div id="droughtList"></div>
+        </div>
+        <div class="card">
+          <div class="row-between"><span>Indeks bahaya cuaca ekstrem (InaRISK)</span><label class="switch"><input type="checkbox" data-inarisk="INDEKS_BAHAYA_CUACAEKSTRIM"><i></i></label></div>
+          <div class="row-between"><span>Indeks bahaya kekeringan (InaRISK)</span><label class="switch"><input type="checkbox" data-inarisk="INDEKS_BAHAYA_KEKERINGAN"><i></i></label></div>
+        </div>
+      </div>
+      <div id="hazFire" class="subpanel hidden">
+        <div class="card">
+          <h4>Titik panas (hotspot) kebakaran <span class="live-dot">REALTIME</span></h4>
+          <p class="muted">Deteksi anomali panas satelit VIIRS/MODIS dari NASA FIRMS (melalui NASA GIBS), diperbarui beberapa jam setelah satelit melintas.</p>
+          <div class="form-grid">
+            <label>Sensor<select id="fireSensor">
+              <option value="VIIRS_NOAA20_Thermal_Anomalies_375m_All">VIIRS NOAA-20 (375 m)</option>
+              <option value="VIIRS_NOAA21_Thermal_Anomalies_375m_All">VIIRS NOAA-21 (375 m)</option>
+              <option value="VIIRS_SNPP_Thermal_Anomalies_375m_All">VIIRS Suomi-NPP (375 m)</option>
+              <option value="MODIS_Combined_Thermal_Anomalies_All">MODIS Terra+Aqua (1 km)</option>
+            </select></label>
+            <label>Rentang<select id="fireDays"><option value="1">Hari terpilih</option><option value="3">3 hari</option><option value="7" selected>7 hari</option></select></label>
+            <label class="span2">Sampai tanggal<input type="date" id="fireDate"></label>
+          </div>
+          <button type="button" class="btn primary" id="fireLoad">Tampilkan titik panas</button>
+        </div>
+        <div class="card slim row-between"><div><h4>Indeks bahaya karhutla</h4><p class="muted">InaRISK BNPB</p></div>
+          <label class="switch"><input type="checkbox" data-inarisk="INDEKS_BAHAYA_KARHUTLA"><i></i></label></div>
+        <div class="callout">ⓘ Titik panas = piksel yang jauh lebih panas dari sekitarnya: bisa kebakaran hutan/lahan, pembakaran sampah/jerami, atau sumber panas industri (cerobong, flare). Perlu verifikasi lapangan; awan tebal dapat menyembunyikan api.</div>
+      </div>
+
+      <div class="callout">ⓘ Potensi cuaca ekstrem, banjir, longsor &amp; kekeringan dihitung dari model prakiraan, bukan peringatan resmi. Untuk peringatan dini resmi rujuk <a href="https://www.bmkg.go.id/" target="_blank" rel="noopener">BMKG</a>, <a href="https://bnpb.go.id/" target="_blank" rel="noopener">BNPB</a>, dan BPBD setempat.</div>
+    </section>
+
+    <!-- Berita -->
+    <section class="module" data-module="news">
+      <header class="mod-head"><span class="kicker">06 · Berita terkini</span><h2>Berita lingkungan &amp; bencana</h2>
+        <p>Dari Mongabay, Ekuatorial, Greenpeace, dan media lokal &amp; nasional (Google News). Berita yang menyebut lokasi ditandai di peta.</p></header>
+      <div class="news-tools">
+        <input type="search" id="newsSearch" placeholder="Cari berita: banjir, Citarum, sampah…" aria-label="Cari berita">
+        <div class="seg" id="newsSeg"><button type="button" data-news="region" class="on">Wilayah pantauan</button><button type="button" data-news="all">Semua</button></div>
+      </div>
+      <p class="fine" id="newsMeta"></p>
+      <div id="newsList" class="news-list"><div class="skeleton"></div><div class="skeleton"></div></div>
     </section>
   </aside>
 

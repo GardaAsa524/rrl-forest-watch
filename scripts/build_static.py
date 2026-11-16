@@ -56,6 +56,8 @@ def main():
     ap.add_argument('--api-base', default='', help='URL server EnviroWatch untuk fitur Earth Engine (opsional)')
     ap.add_argument('--with-ee', choices=['no', 'auto', 'yes'], default='auto',
                     help='Sertakan snapshot Earth Engine (peta & statistik). auto = jika Earth Engine terhubung.')
+    ap.add_argument('--ee-cache', default='', help='Folder cache snapshot Earth Engine (dipakai ulang dalam bulan yang sama)')
+    ap.add_argument('--force-ee', action='store_true', help='Abaikan cache dan hitung ulang snapshot Earth Engine')
     ap.add_argument('--frontend-only', action='store_true',
                     help='Hanya salin ulang tampilan (HTML/CSS/JS/gambar); data di docs/api tidak diubah.')
     args = ap.parse_args()
@@ -75,21 +77,50 @@ def main():
     st.update({'ready': False, 'static': True, 'scheduler_enabled': False, 'last_refresh': None, 'snapshot': None,
                'error': 'Versi GitHub Pages (statis): peta kawasan hutan, DAS, sungai, kabupaten, dan '
                         'biodiversitas tersedia. Fitur Earth Engine membutuhkan server EnviroWatch.'})
-    from app.gee_service import service
-    if args.with_ee == 'yes' or (args.with_ee == 'auto' and service.ready):
+    from app.gee_service import service, TZ
+    from datetime import datetime
+    api = DOCS / 'api'
+    # Earth Engine snapshot is reused from --ee-cache within the same month, so frequent rebuilds
+    # (news every few hours) do not recompute it; a new month or --force-ee recomputes.
+    cache = Path(args.ee_cache) if args.ee_cache else None
+    month = datetime.now(TZ).strftime('%Y-%m')
+    cached = None
+    if cache and (cache / 'manifest.json').exists() and not args.force_ee:
+        m = json.loads((cache / 'manifest.json').read_text(encoding='utf-8'))
+        if m.get('month') == month and m.get('snapshot', {}).get('jobs_ok', 0) > 0:  # use --force-ee to retry failures
+            cached = m['snapshot']
+    if cached:
+        for sub in ('maps', 'stats'):
+            if (cache / sub).exists():
+                shutil.copytree(cache / sub, api / sub, dirs_exist_ok=True)
+        st['snapshot'] = cached
+        print(f"Snapshot Earth Engine dari cache ({cached['generated'][:10]}).")
+    elif args.with_ee == 'yes' or (args.with_ee == 'auto' and service.ready):
         from scripts.ee_snapshot import build as ee_build
         print('Snapshot Earth Engine...')
         st['snapshot'] = ee_build(DOCS)
+        if cache:
+            cache.mkdir(parents=True, exist_ok=True)
+            for sub in ('maps', 'stats'):
+                if (api / sub).exists():
+                    shutil.copytree(api / sub, cache / sub, dirs_exist_ok=True)
+            (cache / 'manifest.json').write_text(json.dumps({'month': month, 'snapshot': st['snapshot']}), encoding='utf-8')
+            (cache / '.updated').write_text(month, encoding='utf-8')  # tells CI to save the cache
+    elif args.with_ee == 'auto':
+        print(f'  (Earth Engine tidak terhubung, snapshot dilewati: {service.error[:120]})')
+    if st['snapshot']:
         st['error'] = ('Versi GitHub Pages: hasil Earth Engine berupa snapshot '
                        f"(diperbarui {st['snapshot']['generated'][:10]}). Profil titik, bulan tertentu, "
                        'dan bercak minyak hanya di versi server.')
-    elif args.with_ee == 'auto':
-        print(f'  (Earth Engine tidak terhubung, snapshot dilewati: {service.error[:120]})')
-    api = DOCS / 'api'
     dump(api / 'status.json', st)
     dump(api / 'layers.json', vectors.catalog())
     for kind in vectors.KINDS:
         dump(api / 'layers' / f'{kind}.json', vectors.load(kind))
+    try:
+        from app import feeds
+        dump(api / 'news.json', feeds.get_news(refresh=True))
+    except Exception as exc:
+        print(f'  ! Berita: {exc}')
     for group in ('animals', 'plants'):
         for area in AREAS:
             try:

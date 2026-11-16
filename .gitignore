@@ -19,3 +19,6 @@ docs/
 # Peta tanah detail (13 MB) hanya untuk unggah K ke Earth Engine; bangun ulang dengan build_data.py --only tanah
 data/tanah.geojson
 data/tanah_k.json
+
+# Cache snapshot Earth Engine (CI)
+.ee-cache/

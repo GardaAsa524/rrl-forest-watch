@@ -11,8 +11,13 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 21 9 * *'   # tanggal 10 pukul 04.00 WIB (21.00 UTC tanggal 9)
+    - cron: '0 */3 * * *'  # tiap 3 jam: berita & GBIF terbaru (snapshot Earth Engine dari cache bulanan)
   workflow_dispatch:
+    inputs:
+      force_ee:
+        description: 'Hitung ulang snapshot Earth Engine (abaikan cache bulan ini)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,6 +43,16 @@ jobs:
       - name: Pasang paket
         run: pip install -r requirements.txt
 
+      - id: month
+        run: echo "ym=$(TZ=Asia/Jakarta date +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+      # Snapshot Earth Engine dihitung sekali per bulan lalu dipakai ulang oleh build berikutnya.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .ee-cache
+          key: ee-snapshot-${{ steps.month.outputs.ym }}-${{ github.run_id }}
+          restore-keys: ee-snapshot-${{ steps.month.outputs.ym }}-
+
       - name: Bangun situs statis + snapshot Earth Engine
         env:
           EE_SERVICE_ACCOUNT_KEY: ${{ secrets.EE_SERVICE_ACCOUNT_KEY }}
@@ -46,7 +61,14 @@ jobs:
           CDSE_LAYER: ${{ vars.CDSE_LAYER }}
           ENABLE_SCHEDULER: 'false'
           PYTHONIOENCODING: utf-8
-        run: python scripts/build_static.py --with-ee auto
+        run: python scripts/build_static.py --with-ee auto --ee-cache .ee-cache ${{ inputs.force_ee && '--force-ee' || '' }}
+
+      - name: Simpan cache snapshot bila dihitung ulang
+        if: hashFiles('.ee-cache/.updated') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .ee-cache
+          key: ee-snapshot-${{ steps.month.outputs.ym }}-${{ github.run_id }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

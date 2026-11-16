@@ -35,6 +35,7 @@ function resolveApi(path) {
   const p = url.pathname;
   if (p === '/api/status') return 'api/status.json';
   if (p === '/api/layers') return 'api/layers.json';
+  if (p === '/api/news') return 'api/news.json';
   let m = p.match(/^\/api\/layers\/([a-z]+)$/);
   if (m) return `api/layers/${m[1]}.json`;
   m = p.match(/^\/api\/biodiversity\/([a-z]+)$/);
@@ -220,15 +221,16 @@ async function loadBoundary() {
     if (S.boundary) S.map.removeLayer(S.boundary);
     S.boundary = L.geoJSON(gj, {pane: 'boundary', interactive: false,
       style: {color: '#0b2f29', weight: 2, opacity: .9, fill: false, dashArray: '6 5'}}).addTo(S.map);
-    if (S.boundary.getBounds().isValid()) S.map.flyToBounds(S.boundary.getBounds(), {padding: [20, 20], duration: .8});
+    if (S.boundary.getBounds().isValid()) fitArea(S.boundary.getBounds());
   } catch (err) { toast('Batas wilayah tidak dimuat', ' ' + err.message, 'err'); }
 }
 
 function setArea(area) {
   S.area = area;
   $$('#areaSeg button').forEach((b) => { b.classList.toggle('on', b.dataset.area === area); b.setAttribute('aria-checked', b.dataset.area === area); });
+  $('#areaSelect').value = area;
   $('#kpiArea').textContent = S.status?.areas?.[area] || area;
-  if (S.map) S.map.flyToBounds(BOUNDS[area], {duration: .8});
+  if (S.map) fitArea(L.latLngBounds(BOUNDS[area]));
   loadBoundary();
   for (const fn of [...S.reloaders.values()]) fn();  // re-run active Earth Engine layers for the new area
   S.gbif = {};
@@ -248,9 +250,11 @@ function setModule(name) {
   $$('.module').forEach((m) => m.classList.toggle('on', m.dataset.module === name));
   $('#panel').scrollTop = 0;
   $('#panel').classList.remove('collapsed');
+  if (isMobile() && S.sheet === 'peek') setSheet('half');
   if (name === 'bio') { loadVector('kawasan'); loadKab(); loadBio(); }
   if (name === 'land') { renderIndexMethod(); renderEnvInfo(); renderCdseCard('#cdseIndexCard', 'index'); }
   if (name === 'water') { loadHydro(); renderWaterInfo(); renderCdseCard('#cdseWaterCard', 'water'); }
+  if (name === 'news' && typeof loadNews === 'function') loadNews();
 }
 
 /* ======================================================= OVERVIEW */
@@ -959,6 +963,57 @@ function applyTheme(theme, save = false) {
   if (save) { try { localStorage.setItem('ew-theme', theme); } catch { /* private mode */ } }
 }
 
+/* ---------------------------------------------- mobile bottom sheet (drag) */
+const isMobile = () => window.matchMedia('(max-width: 760px)').matches;
+const SHEET = {peek: () => 92, half: () => window.innerHeight * 0.48, full: () => window.innerHeight - 130};
+function setSheet(state) {
+  if (!isMobile()) return;
+  S.sheet = state;
+  document.querySelector('.shell').style.setProperty('--sheet-h', `${Math.round(SHEET[state]())}px`);
+}
+/** Fit the study area in the part of the map not covered by the mobile bottom sheet. */
+function fitArea(bounds) {
+  if (!S.map || !bounds?.isValid()) return;
+  S.map.invalidateSize();
+  const sheet = isMobile() ? $('#panel').getBoundingClientRect().height : 0;
+  S.map.flyToBounds(bounds, {paddingTopLeft: [16, 56], paddingBottomRight: [16, 16 + sheet], duration: .8});
+}
+function initSheet() {
+  const panel = $('#panel'), handle = $('#sheetHandle'), shell = document.querySelector('.shell');
+  let startY = 0, startH = 0, moved = false, dragging = false;
+  const height = () => panel.getBoundingClientRect().height;
+  const down = (e) => {
+    if (!isMobile()) return;
+    dragging = true; moved = false; startY = e.clientY; startH = height();
+    panel.classList.add('dragging'); handle.setPointerCapture?.(e.pointerId);
+  };
+  const move = (e) => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 4) moved = true;
+    const h = Math.min(SHEET.full(), Math.max(SHEET.peek(), startH - dy));
+    shell.style.setProperty('--sheet-h', `${h}px`);
+  };
+  const up = () => {
+    if (!dragging) return;
+    dragging = false; panel.classList.remove('dragging');
+    if (!moved) { setSheet({peek: 'half', half: 'full', full: 'peek'}[S.sheet || 'half']); return; }
+    const h = height();
+    const nearest = Object.keys(SHEET).sort((x, y) => Math.abs(SHEET[x]() - h) - Math.abs(SHEET[y]() - h))[0];
+    setSheet(nearest);
+  };
+  handle.addEventListener('pointerdown', down);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+  window.addEventListener('resize', () => { setSheet(S.sheet || 'half'); S.map?.invalidateSize(); });
+  setSheet('half');
+  // Layout (header/sheet) settles after first paint: resize the map, then frame the study area.
+  setTimeout(() => { S.map?.invalidateSize(); fitArea(L.latLngBounds(BOUNDS[S.area])); }, 350);
+  // Legend: tap the title to fold/unfold (saves space on phones).
+  $('#legend').addEventListener('click', (e) => { if (e.target.closest('h5')) $('#legend').classList.toggle('collapsed'); });
+}
+
 function wire() {
   applyTheme(document.documentElement.dataset.theme || 'light');
   $('#themeBtn').onclick = () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
@@ -983,7 +1038,7 @@ function wire() {
   $$('#landSeg button').forEach((b) => b.onclick = () => {
     S.land = b.dataset.land;
     $$('#landSeg button').forEach((x) => x.classList.toggle('on', x === b));
-    for (const [k, id] of [['index', '#landIndex'], ['fire', '#landFire'], ['defor', '#landDefor'], ['env', '#landEnv'], ['cover', '#landCover']]) {
+    for (const [k, id] of [['index', '#landIndex'], ['defor', '#landDefor'], ['env', '#landEnv'], ['cover', '#landCover']]) {
       $(id).classList.toggle('hidden', S.land !== k);
     }
     if (S.land === 'cover') loadVector('tanah');
@@ -1010,13 +1065,8 @@ function wire() {
   $('#changeLoad').onclick = loadLandChange;
   $('#waterLoad').onclick = loadWater;
   $('#waterTrendBtn').onclick = loadWaterTrend;
-  $('#sheetHandle').onclick = () => {
-    const p = $('#panel');
-    if (p.classList.contains('expanded')) { p.classList.remove('expanded'); p.classList.add('collapsed'); }
-    else if (p.classList.contains('collapsed')) p.classList.remove('collapsed');
-    else p.classList.add('expanded');
-    setTimeout(() => S.map?.invalidateSize(), 400);
-  };
+  initSheet();
+  $('#areaSelect').onchange = (e) => e.target.value !== S.area && setArea(e.target.value);
 }
 
 async function init() {

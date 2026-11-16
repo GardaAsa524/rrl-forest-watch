@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import biodiversity, vectors
+from . import biodiversity, feeds, vectors
 from .config import ROOT, PROJECT, SCHEDULER_ENABLED, CACHE_DIR, AREAS, CDSE_INSTANCE_ID, CDSE_LAYER
 from .gee_service import (EarthEngineUnavailable, service, INDICES, ENV_LAYERS, WORLDCOVER,
                           WATER_LAYERS, WATER_AOIS, LAND_CHANGE, FIRST_YEAR, ENV_FIRST_YEAR)
@@ -206,6 +206,25 @@ def land_change(end: int = Query(2025, ge=2021, le=2025), area: str = 'all', for
         data = service.land_change_stats(end - 20, end, area)
         put_stat(key, data)
         return {**data, 'from_cache': False}
+    except Exception as exc:
+        _handle_error(exc)
+
+
+# ------------------------------------------------------------------ news
+@app.get('/api/news')
+def news(refresh: bool = False):
+    """Environmental news (RSS: Mongabay, Ekuatorial, Greenpeace, Google News), cached 30 min."""
+    try:
+        return feeds.get_news(refresh)
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@app.get('/api/bnpb/events')
+def bnpb_events(codes: str = '31,32,36', count: bool = False):
+    """Proxy for BNPB weekly disaster reports (BNPB allows browser access only from the Pages domain)."""
+    try:
+        return feeds.bnpb_events(codes.split(','), count_only=count)
     except Exception as exc:
         _handle_error(exc)
 
